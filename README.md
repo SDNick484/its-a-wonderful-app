@@ -11,8 +11,15 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
 
 ## What works today
 
-- The app skeleton: the page (an empty poster grid titled "It's a Wonderful App"), `GET /api/health` →
-  `{"ok": true, "schema": "1"}`, and the whole database schema (v1).
+- The app skeleton: the page, `GET /api/health` → `{"ok": true, "schema": "1"}`, and the whole database
+  schema (v1).
+- **The list.** The **+** button opens a sheet: search TMDB by title, tap **Add to our list**, and the grid gains
+  the poster (3 columns on every phone). A movie or a TV-only special adds the same way; one already on the list
+  says "On our list". Tap a poster for the detail view: backdrop, overview, runtime, certification (US, `NR` when
+  TMDB has none; change it by hand and refreshes keep your choice), top cast, collection, an editable note for
+  parents, and **Remove from our list** (asks first; its ratings and viewings go with it). Posters are downloaded
+  once to `$DATA_DIR/posters/`; a missing poster shows a titled placeholder. Adding needs `TMDB_READ_TOKEN`.
+  API: `GET /api/tmdb/search?q=`, `GET`/`POST /api/movies`, `GET`/`PUT`/`DELETE /api/movies/<id>`.
 - Sign-in rules (below), the Home Assistant TV hook's secret check (`POST /hooks/tv`; the hook changes nothing
   yet), the installer, the OpenRC service and the nightly backup.
 

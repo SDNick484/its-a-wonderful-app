@@ -7,6 +7,9 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /                 the single-page app (static/index.html with versioned modules)
   /api/health       {"ok": true, "schema": "1"}
   /api/me           {"editor": "<who>"}
+  /api/tmdb/search  TMDB search for the add sheet (?q=)
+  /api/movies       GET the list, POST {tmdb_id, tmdb_type} to add; /api/movies/<id> GET, PUT, DELETE
+  /posters/<name>   the local poster and backdrop copies
   /hooks/tv         Home Assistant TV events (auth.hook_required: X-Hook-Secret)
   /static/<path>    CSS, ES modules, fonts: no auth (no data in them)
 
@@ -25,13 +28,15 @@ from common import RATING_ERROR, clean, make_err, validate_rating, round_half_up
 from db import SCHEMA, SCHEMA_VERSION, connect, get_db, migrate, init_db  # noqa: F401
 from auth import KEY_IDENTITY, presented_key, lan_host, access_identity, cross_site  # noqa: F401
 from auth import editor_required, hook_required  # noqa: F401
+from tmdb import TmdbError  # noqa: F401
+import images, movies, tmdb  # noqa: F401  (route-free modules; use images.X, movies.X, tmdb.X)
 
 
 # ===================================================================== split modules
 # app.py re-exports every name the sibling modules define, so `app.X` works everywhere. A write to app.X (monkeypatch
 # in the tests) also rebinds X in each split module that holds it, so their code reads the new value. Patch app.X,
 # never the sibling module. A new module goes here and in installer/build.sh's cp line.
-_SPLIT_MODULES = ("settings", "common", "db", "auth")
+_SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "images", "movies")
 
 
 class _AppModule(types.ModuleType):
@@ -159,6 +164,72 @@ def health():
 @editor_required
 def me():
     return jsonify(editor=g.editor)
+
+
+# ============================================================================ movies
+@app.errorhandler(TmdbError)
+def tmdb_error(e):
+    return make_err(e.status, e.message, reason=e.reason)
+
+
+@app.get("/api/tmdb/search")
+@editor_required
+def api_tmdb_search():
+    """{"results": [{tmdb_id, tmdb_type, title, year, poster_path, on_list}], "message": null | "…"}: on_list is the
+    movie's id when it is already on our list. No match is a 200 with an empty list and a message."""
+    q = clean(request.args.get("q"))
+    if not q:
+        return make_err(400, "Type a title to search for.")
+    results = tmdb.search(q)
+    have = {(r["tmdb_type"], r["tmdb_id"]): r["id"] for r in get_db().execute("SELECT id, tmdb_type, tmdb_id FROM movies")}
+    for r in results:
+        r["on_list"] = have.get((r["tmdb_type"], r["tmdb_id"]))
+    return jsonify(results=results, message=None if results else f'TMDB has nothing called "{q}".')
+
+
+@app.get("/api/movies")
+@editor_required
+def api_movies():
+    return jsonify([movies.movie_out(r) for r in movies.list_rows(get_db())])
+
+
+@app.post("/api/movies")
+@editor_required
+def api_movie_add():
+    tmdb_id, tmdb_type = movies.parse_ref(request.get_json(silent=True))
+    con = get_db()
+    movie_id = movies.add_movie(con, tmdb_id, tmdb_type, g.editor)
+    return jsonify(movies.movie_out(movies.get_row(con, movie_id))), 201
+
+
+@app.get("/api/movies/<int:movie_id>")
+@editor_required
+def api_movie(movie_id):
+    return jsonify(movies.movie_out(movies.get_row(get_db(), movie_id)))
+
+
+@app.put("/api/movies/<int:movie_id>")
+@editor_required
+def api_movie_update(movie_id):
+    con = get_db()
+    movies.update_movie(con, movie_id, request.get_json(silent=True))
+    return jsonify(movies.movie_out(movies.get_row(con, movie_id)))
+
+
+@app.delete("/api/movies/<int:movie_id>")
+@editor_required
+def api_movie_remove(movie_id):
+    movies.remove_movie(get_db(), movie_id)
+    return jsonify(ok=True)
+
+
+@app.get("/posters/<name>")
+@editor_required
+def poster_file(name):
+    """A poster or backdrop saved by images.fetch(). Only the names images.py writes are served."""
+    if not images.NAME_RE.match(name):
+        return make_err(404, "No such image.")
+    return send_from_directory(POSTER_DIR, name, max_age=86400)
 
 
 # ============================================================================= hooks

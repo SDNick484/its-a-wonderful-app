@@ -1,0 +1,82 @@
+{
+  "adult": false,
+  "backdrop_path": "/tinsel-backdrop.jpg",
+  "created_by": [],
+  "episode_run_time": [
+    24
+  ],
+  "first_air_date": "2011-12-02",
+  "genres": [
+    {
+      "id": 16,
+      "name": "Animation"
+    },
+    {
+      "id": 10751,
+      "name": "Family"
+    }
+  ],
+  "homepage": "",
+  "id": 900002,
+  "in_production": false,
+  "languages": [
+    "en"
+  ],
+  "last_air_date": "2011-12-02",
+  "name": "The Tinsel Express",
+  "number_of_episodes": 1,
+  "number_of_seasons": 1,
+  "original_language": "en",
+  "original_name": "The Tinsel Express",
+  "overview": "A toy train races the snow to deliver the last gifts of the night.",
+  "poster_path": "/tinsel-poster.jpg",
+  "status": "Ended",
+  "type": "Miniseries",
+  "vote_average": 6.8,
+  "vote_count": 30,
+  "content_ratings": {
+    "results": [
+      {
+        "iso_3166_1": "CA",
+        "rating": "G"
+      },
+      {
+        "iso_3166_1": "US",
+        "rating": "TV-Y7"
+      }
+    ]
+  },
+  "credits": {
+    "cast": [
+      {
+        "adult": false,
+        "gender": 0,
+        "id": 1000,
+        "known_for_department": "Acting",
+        "name": "Ada Fenwick",
+        "original_name": "Ada Fenwick",
+        "popularity": 10.0,
+        "profile_path": null,
+        "cast_id": 0,
+        "character": "Voice",
+        "credit_id": "52fe40000",
+        "order": 0
+      },
+      {
+        "adult": false,
+        "gender": 0,
+        "id": 1001,
+        "known_for_department": "Acting",
+        "name": "Bo Larkspur",
+        "original_name": "Bo Larkspur",
+        "popularity": 10.0,
+        "profile_path": null,
+        "cast_id": 1,
+        "character": "Voice",
+        "credit_id": "52fe40001",
+        "order": 1
+      }
+    ],
+    "crew": []
+  }
+}

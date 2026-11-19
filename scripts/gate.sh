@@ -34,7 +34,7 @@ step_test() {
 
 step_ui() {
   echo "==> UI smoke (Playwright + Chromium, 412 x 915)"
-  REQUIRE_UI=1 "$PY" -m pytest -v -rs tests/test_ui_smoke.py
+  REQUIRE_UI=1 "$PY" -m pytest -v -rs tests/test_ui_*.py
 }
 
 step_js() {
