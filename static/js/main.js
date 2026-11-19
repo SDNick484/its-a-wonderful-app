@@ -6,6 +6,7 @@ import { showDetail } from "./detail.js";
 import { loadMovies, watchPosters } from "./grid.js";
 import { wireSearch } from "./search.js";
 import { showSettings } from "./settings.js";
+import { wireSurprise } from "./surprise.js";
 
 let gridScroll = 0;
 
@@ -44,6 +45,7 @@ async function start() {
   }
   watchPosters(document.getElementById("grid"));
   wireSearch();
+  wireSurprise();
   const add = document.getElementById("add-btn");
   add.addEventListener("click", () => openAddSheet(add));
   window.addEventListener("hashchange", route);

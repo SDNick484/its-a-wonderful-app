@@ -10,6 +10,7 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /api/tmdb/search  TMDB search for the add sheet (?q=)
   /api/movies       GET the list, POST {tmdb_id, tmdb_type} to add; /api/movies/<id> GET, PUT, DELETE
   /api/search       our list: an exact title, else the local filter (?q=)
+  /api/surprise     POST {filters, exclude}: three random picks from our list (the Surprise us button)
   /api/services     GET the streaming services, PUT {key, status} to subscribe, consider or ignore one
   /api/movies/<id>/providers/refresh   POST: ask TMDB where it streams now
   (ownership and shelf come from Matinee: asked on add, on the detail view when over a day old, and nightly)
@@ -33,14 +34,14 @@ from db import SCHEMA, SCHEMA_VERSION, connect, get_db, migrate, init_db  # noqa
 from auth import KEY_IDENTITY, presented_key, lan_host, access_identity, cross_site  # noqa: F401
 from auth import editor_required, hook_required  # noqa: F401
 from tmdb import TmdbError  # noqa: F401
-import images, matinee, movies, providers, search, tmdb  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
+import images, matinee, movies, providers, randomizer, search, tmdb  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
 
 
 # ===================================================================== split modules
 # app.py re-exports every name the sibling modules define, so `app.X` works everywhere. A write to app.X (monkeypatch
 # in the tests) also rebinds X in each split module that holds it, so their code reads the new value. Patch app.X,
 # never the sibling module. A new module goes here and in installer/build.sh's cp line.
-_SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "images", "matinee", "movies", "providers", "search")
+_SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "images", "matinee", "movies", "providers", "randomizer", "search")
 
 
 class _AppModule(types.ModuleType):
@@ -202,6 +203,15 @@ def api_search():
     if hit is not None:
         return jsonify(mode="exact", matches=[{"id": hit, "why": "exact title"}], suggestions=[])
     return jsonify(mode="local", matches=search.local_matches(con, q), suggestions=[])
+
+
+@app.post("/api/surprise")
+@editor_required
+def api_surprise():
+    """{"picks": [ids], "pool_size": n, "restarted": bool}: up to three distinct movies from the list after the filters
+    ({"animated": true|false|null, "cap": null|"G"|"PG"|"PG-13", "under_90", "not_watched_this_year", "ready"}),
+    skipping `exclude`, the ids shown since the filters last changed (spec §12). Reads only the local database."""
+    return jsonify(randomizer.surprise(get_db(), request.get_json(silent=True)))
 
 
 @app.get("/api/movies")

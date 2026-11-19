@@ -23,6 +23,16 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
 - **Search.** The box above the grid filters the list as you type, by title, year, actor or collection (no network).
   Enter shows an exact title on its own (`elf` → *Elf*; "The" and punctuation don't count), otherwise the matches.
   API: `GET /api/search?q=` → `{"mode", "matches": [{"id", "why"}], "suggestions"}`.
+- **Surprise us.** **🎲 Surprise us, ya filthy animals**, above the grid, draws three different movies from the list
+  with a poster, runtime and where to watch on each; tap one for its detail view. **Keep the change (pick again)**
+  draws three more, skipping what was shown, until the list runs out and then says it is starting over. Six chips
+  narrow the draw, all off to begin with (the whole list) and remembered on that phone: **Animated** / **Live
+  action** (one or the other), a rating cap that cycles **Up to G**, **Up to PG**, **Up to PG-13** (a title with no US
+  rating, `NR`, counts as PG, so *Up to G* leaves it out), **Under 90 min** (a title with no runtime fails it),
+  **Not watched this year** (a finished viewing or a Matinee watch in the calendar year on the host's `TZ`; a
+  January 2 watch counts for the new year) and **Ready to watch** (owned, on a service you subscribe to, or free).
+  With fewer than three matches it says "Only 2 match. Try turning off a filter."
+  API: `POST /api/surprise` `{"filters": {...}, "exclude": [ids]}` → `{"picks": [ids], "pool_size", "restarted"}`.
 - **Where to watch.** Every card carries one line (green when it is ready to watch tonight) and the detail view lists
   them all, best first: on a service you subscribe to ("On Netflix"), free ("Free with ads on The Roku Channel"; free
   counts as ready), on a service you are only considering ("On Peacock (you don't have it)"), then "Rent or buy".
