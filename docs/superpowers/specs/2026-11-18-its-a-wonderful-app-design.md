@@ -217,6 +217,7 @@ CREATE TABLE matinee_sync (            -- what we last told / heard from Matinee
   owned_summary TEXT,                  -- "Blu-ray · Movies Anywhere"
   location_path TEXT,                  -- "Family Room › Media Cabinet › Shelf 2"
   matinee_rating REAL,                 -- last seen
+  matinee_last_watch TEXT,             -- newest watched_date Matinee has (for "Not watched this year")
   pushed_rating REAL,                  -- last value we wrote
   rating_owner TEXT NOT NULL DEFAULT 'matinee' CHECK (rating_owner IN ('matinee','wonderful')),
   conflict_rating REAL,                -- Matinee changed after we took over; shown as a notice
