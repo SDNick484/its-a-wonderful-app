@@ -73,7 +73,7 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   so does 4 am local the next morning. Tap a movie in the row for **Keep watching tonight** (when it is paused), **We
   finished**, its details, or **We gave up on it** (off the row, nothing sent anywhere). A paused movie says how far
   along it is: **Just started** (under 25 %), **About halfway** (25 to 75 %) or **Almost done**. When the TV stopped
-  a movie (the TV webhook task), the next open asks **Did you finish *Home Alone*?** with **Yes**, **Not yet** and
+  a movie, the next open asks **Did you finish *Home Alone*?** with **Yes**, **Not yet** and
   "We gave up on it": the app's guess is highlighted but still needs a tap. After **We finished** or **Yes**: "Want to
   rate it?" (**Rate** opens the rating sheet with the people who watched first; **Skip**).
 - **Finishing tells Matinee and Home Assistant.** A finished movie Matinee owns is logged there once as a watch, dated
@@ -98,8 +98,16 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
 - **The starting list.** `data/seed-movies.json` holds the 41 titles from spec §17, with their parent notes and
   certifications but no TMDB ids yet. `ops/seed-movies` adds the ones that have an id and skips the rest; see
   [The starting list](#the-starting-list).
-- Sign-in rules (below), the Home Assistant TV hook's secret check (`POST /hooks/tv`; the hook changes nothing
-  yet), the installer, the OpenRC service and the nightly backup.
+- **The Family Room TV.** A Home Assistant automation posts the TV's on/off and input changes to `POST /hooks/tv`
+  (`{"state", "source", "at"}` with `X-Hook-Secret: <HA_HOOK_SECRET>`; the YAML is in
+  [docs/home-assistant.md](docs/home-assistant.md)). While one movie is on for tonight, the TV turning on to an input
+  that can play it (a service TMDB lists it on, by that service's `tv_source`, or `AV Receiver` for a disc Matinee
+  says we own) starts counting; the TV turning off, switching to anything else, or running past the runtime + 60
+  minutes stops it. Then the movie is paused with a guess: finished at 85 % of the runtime, otherwise not, and no
+  guess when the runtime is unknown (the question is still asked, with nothing highlighted). Duplicate, late or
+  out-of-order events, "on" twice and "off" with nothing counting change nothing.
+- Sign-in rules (below), the Home Assistant TV hook's secret check, the installer, the OpenRC service and the nightly
+  backup.
 
 ## Who can open it
 
