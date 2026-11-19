@@ -114,7 +114,8 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   is closed. Themes on/off and light/dark are saved in the database for the whole household. A theme is a folder,
   `static/themes/<key>/` (`fireplace`, `toystore`, `tree`, `sleigh`), holding `background.webp` (portrait, 1080 × 2340),
   `background-wide.webp` (landscape, 2340 × 1080) and `theme.css` (the tuning, e.g. `--flicker` and `--twinkle`); the
-  pictures are flat placeholders until the drawings arrive, and replacing the two files is all it takes.
+  pictures are flat placeholders until the drawings arrive. To make them from a photo of a drawing, see
+  [docs/themes.md](docs/themes.md): `ops/prepare-theme <key> <photo>` writes both files with Pillow.
   API: `GET /api/theme` (`{"theme": "fireplace" | "toystore" | "tree" | "sleigh" | null, "until": "2027-01-06"}`),
   `GET`/`PUT /api/theme/prefs` (`{"enabled": true, "mode": "system"}`).
 - **The starting list.** `data/seed-movies.json` holds the 41 titles from spec §17, with their parent notes and
