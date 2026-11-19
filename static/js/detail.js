@@ -1,5 +1,5 @@
 // It's a Wonderful App: one movie's detail view (backdrop, overview, runtime, certification, cast, collection, the
-// parent note) and Remove.
+// parent note), the family rating (with the notice when Matinee disagrees) and Remove.
 import { api, esc, state, toast } from "./core.js";
 import { loadMovies, posterHtml, renderGrid, watchPosters } from "./grid.js";
 import { dotsHtml, openRatingSheet, starText } from "./rating.js";
@@ -21,11 +21,24 @@ function whereHtml(m) {
     + `<p class="where-credit"><span>Data from ${source}</span> <button type="button" class="btn btn-quiet" id="detail-refresh">Check again</button></p>`;
 }
 
+// "Matinee says 9, we say 8.6" with the three answers (spec §8.2), or a line saying Matinee hasn't been told yet.
+function syncHtml(m) {
+  const c = m.rating_conflict;
+  if (c) {
+    const ours = typeof c.ours === "number" ? String(c.ours) : "nothing";
+    return `<div class="sync-note" id="rating-conflict" role="status"><p class="sync-text">Matinee says ${esc(String(c.matinee))}, we say ${esc(ours)}</p>`
+      + `<div class="sync-actions"><button type="button" class="btn" data-choice="ours">Use ours</button>`
+      + `<button type="button" class="btn btn-quiet" data-choice="matinee">Use Matinee's</button>`
+      + `<button type="button" class="btn btn-quiet" data-choice="dismiss">Dismiss</button></div></div>`;
+  }
+  return m.rating_pending ? `<p class="sync-hint" id="rating-pending">Not sent to Matinee yet. It tries again tonight.</p>` : "";
+}
+
 // "★ 8.6 family" and the dot row (spec §11), or a note that Matinee's rating is showing, with the Rate button.
 function ratingsHtml(m) {
   const star = starText(m.family_rating);
   const label = !star ? "Nobody has rated it yet." : m.rating_source === "matinee" ? `${star} family rating from Matinee` : `${star} family`;
-  return `<p class="rating-head" id="detail-rating-head">${esc(label)}</p>${dotsHtml(m.family)}`
+  return `<p class="rating-head" id="detail-rating-head">${esc(label)}</p>${dotsHtml(m.family)}${syncHtml(m)}`
     + `<div class="detail-actions"><button type="button" class="btn" id="detail-rate">${m.family?.by_person.some(p => p.rating !== null) ? "Change ratings" : "Rate it"}</button></div>`;
 }
 
@@ -56,10 +69,12 @@ function keepInState(m) {
   state.movies = state.movies.map(x => (x.id === m.id ? { ...x, ...m } : x));
 }
 
-// A rating was saved: show it here and on the card behind this screen.
+// A rating was saved (or a Matinee conflict settled): show it here and on the card behind this screen.
 function ratingsSaved(m, saved) {
-  Object.assign(m, { family_rating: saved.family_rating, rating_source: saved.rating_source, family: saved.family });
-  keepInState({ id: m.id, family_rating: m.family_rating, rating_source: m.rating_source, family: m.family });
+  const fields = { family_rating: saved.family_rating, rating_source: saved.rating_source, family: saved.family,
+    rating_conflict: saved.rating_conflict ?? null, rating_pending: Boolean(saved.rating_pending) };
+  Object.assign(m, fields);
+  keepInState({ id: m.id, ...fields });
   const box = document.getElementById("detail-ratings");
   if (box && box.isConnected && Number(location.hash.split("/")[2]) === m.id) box.innerHTML = ratingsHtml(m);
   renderGrid();
@@ -101,6 +116,20 @@ async function refreshProviders(m, quiet) {
   if (box && box.isConnected && Number(location.hash.split("/")[2]) === m.id) box.innerHTML = whereHtml(m);
   keepInState({ id: m.id, where_to_watch: m.where_to_watch });
   renderGrid();   // the card behind this screen shows the new line when the person goes back
+}
+
+const SETTLED = { ours: "Sent ours to Matinee.", matinee: "Using Matinee's rating.", dismiss: "Left as it is." };
+
+async function settleConflict(m, choice, button) {
+  for (const b of document.querySelectorAll("#rating-conflict button")) b.disabled = true;
+  try {
+    const saved = await api(`/api/movies/${m.id}/rating-conflict`, { method: "POST", body: { choice } });
+    ratingsSaved(m, saved);
+    toast(choice === "ours" && saved.rating_pending ? "Matinee didn't answer. Ours goes tonight." : SETTLED[choice]);
+  } catch (e) {
+    if (button.isConnected) for (const b of document.querySelectorAll("#rating-conflict button")) b.disabled = false;
+    toast(`Couldn't save: ${e.message}`);
+  }
 }
 
 async function removeMovie(m) {
@@ -145,6 +174,8 @@ async function showDetail(id) {
     if (e.target.closest("#detail-refresh")) refreshProviders(m, false);
     const rate = e.target.closest("#detail-rate");
     if (rate) openRatingSheet(m, rate, saved => ratingsSaved(m, saved));
+    const choice = e.target.closest("[data-choice]");
+    if (choice) settleConflict(m, choice.dataset.choice, choice);
   });
   if (m.providers_stale) refreshProviders(m, true);
 }

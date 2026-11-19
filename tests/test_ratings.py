@@ -147,7 +147,7 @@ def test_every_change_tells_the_sync_hook(client, family, monkeypatch):
     assert seen == [family["klaus"], family["klaus"]]
 
 
-def test_the_rating_hook_exists_and_does_nothing_yet(app_ctx):
+def test_the_rating_hook_with_nothing_rated_does_nothing(app_ctx):
     assert app.sync.after_rating_change(app.get_db(), 1) is None
 
 

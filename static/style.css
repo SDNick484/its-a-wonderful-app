@@ -680,6 +680,29 @@ main {
   font-weight: 700;
   color: var(--amber);
 }
+.sync-note {
+  margin: var(--s3) 0 0;
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--card);
+}
+.sync-text {
+  margin: 0;
+  font-weight: 700;
+  color: var(--ink);
+}
+.sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s3);
+}
+.sync-hint {
+  margin: var(--s3) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+}
 .rating-dots {
   display: flex;
   flex-wrap: wrap;

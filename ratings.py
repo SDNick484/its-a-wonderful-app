@@ -1,8 +1,7 @@
 """Per-person ratings and the family rating (spec §8.2, §11). Ratings are 0.0-10.0 in 0.5 steps (common.validate_rating);
 the family rating is their mean to one decimal, null when nobody has rated. Route-free: a bad request aborts with
-common.make_err. Every change calls sync.after_rating_change(con, movie_id), which keeps Matinee in step (Task 9: a
-no-op until then). `set` shadows the builtin inside this module on purpose (the plan's name for it); use no set() here.
-No Flask object here (see CLAUDE.md)."""
+common.make_err. Every change calls sync.after_rating_change(con, movie_id), which keeps Matinee in step. `set` shadows the
+builtin inside this module on purpose (the plan's name for it); use no set() here. No Flask object here (see CLAUDE.md)."""
 from fractions import Fraction
 from math import floor
 
@@ -63,10 +62,11 @@ def shown(con, movie_id, fam=None):
 
 
 def out(con, movie_id):
-    """What the page needs beside a movie: {"family_rating", "rating_source", "family": {mean, by_person}}."""
+    """What the page needs beside a movie: {"family_rating", "rating_source", "family": {mean, by_person},
+    "rating_conflict": {matinee, ours} | None, "rating_pending": bool} (the last two from sync.status)."""
     fam = family(con, movie_id)
     rating, source = shown(con, movie_id, fam)
-    return {"family_rating": rating, "rating_source": source, "family": fam}
+    return {"family_rating": rating, "rating_source": source, "family": fam, **sync.status(con, movie_id, fam["mean"])}
 
 
 def parse_body(data):

@@ -156,7 +156,9 @@ class FakeMatinee:
     """Stands in for urllib.request.urlopen for Matinee's /admin/api, answering from tests/fixtures/matinee/ (shapes
     recorded from Matinee's own responses), and records each request as (method, path, body). It checks the bearer key
     (a wrong one gets Matinee's real 401). `owned_files` maps a TMDB id to the owned-answer file (any other id is "not
-    owned"); title 1 is the recorded Elf. Requests to any other host go to `other`, the urlopen that was in force
+    owned"); title 1 is the recorded Elf. Matinee keeps a rating it is sent: after a PUT, title 1 reads back that
+    `user_rating`, and a test sets `user_rating[1]` itself to stand for someone changing it in Matinee (None: unrated).
+    Requests to any other host go to `other`, the urlopen that was in force
     before, so this composes with tmdb_fixtures."""
 
     def __init__(self, other):
@@ -165,6 +167,7 @@ class FakeMatinee:
         self.headers = []                              # the Authorization header of each request
         self.owned_files = {10719: "owned_elf.json"}
         self.people_file = "people.json"               # people_five.json has a fifth person
+        self.user_rating = {}                          # title id -> the rating Matinee holds now, over the recording
 
     def _json(self, name):
         return io.BytesIO((MATINEE_FIXTURES / name).read_bytes())
@@ -186,12 +189,16 @@ class FakeMatinee:
         if m == "GET" and (g := re.fullmatch(r"/admin/api/tmdb/(\d+)/owned", url.path)):
             return self._json(self.owned_files.get(int(g.group(1)), "not_owned.json"))
         if m == "GET" and url.path == "/admin/api/titles/1":
-            return self._json("title_detail_elf.json")
+            if 1 not in self.user_rating:
+                return self._json("title_detail_elf.json")
+            title = json.loads((MATINEE_FIXTURES / "title_detail_elf.json").read_text())
+            return io.BytesIO(json.dumps({**title, "user_rating": self.user_rating[1]}).encode())
         if m == "GET" and url.path == "/admin/api/people":
             return self._json(self.people_file)
         if m == "PUT" and url.path == "/admin/api/titles/1/rating":
             if (body["rating"] * 2) % 1:
                 self._http_error(req, 400, "rating_400.json")
+            self.user_rating[1] = body["rating"]
             return self._json("rating_set.json")
         if m == "POST" and url.path == "/admin/api/titles/1/watches":
             return self._json("watch_added.json")

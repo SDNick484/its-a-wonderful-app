@@ -14,6 +14,8 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /api/people       GET the family (copied from Matinee on first run), POST {name, kind, color} to add one here;
                     POST /api/people/sync copies Matinee's people again
   /api/movies/<id>/ratings/<person_id>   PUT {"rating": 8.5 | null}: one person's rating (0.5 steps), null clears it
+  /api/movies/<id>/rating-conflict       POST {"choice": "ours" | "matinee" | "dismiss"}: settle "Matinee says 7, we
+                    say 8.9" (the family rating is kept in step with Matinee's, sync.py)
   /api/services     GET the streaming services, PUT {key, status} to subscribe, consider or ignore one
   /api/movies/<id>/providers/refresh   POST: ask TMDB where it streams now
   (ownership and shelf come from Matinee: asked on add, on the detail view when over a day old, and nightly)
@@ -320,6 +322,18 @@ def api_rating_set(movie_id, person_id):
     steps from 0 to 10, null clears it. 400 for 7.3 or 11. The family mean is null again when the last rating goes."""
     con = get_db()
     ratings.set(con, movie_id, person_id, ratings.parse_body(request.get_json(silent=True)))
+    return jsonify(ratings.out(con, movie_id))
+
+
+@app.post("/api/movies/<int:movie_id>/rating-conflict")
+@editor_required
+def api_rating_conflict(movie_id):
+    """{"choice": "ours" | "matinee" | "dismiss"} -> {"family_rating", "rating_source", "family", "rating_conflict",
+    "rating_pending"}. Ours is sent to Matinee (Matinee down: it stays owed, rating_pending true, and goes tonight);
+    Matinee's hands the rating back to Matinee; Dismiss closes the notice. With no notice open nothing changes."""
+    con = get_db()
+    data = request.get_json(silent=True)
+    sync.resolve_conflict(con, movie_id, data.get("choice") if isinstance(data, dict) else None)
     return jsonify(ratings.out(con, movie_id))
 
 
