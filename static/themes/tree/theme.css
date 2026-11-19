@@ -1,0 +1,35 @@
+/* Christmas tree (spec §14.3). static/js/theme.js loads this file when the theme is on; it is a theme's whole look:
+   its art, its glow and its tuning. To change a scene's picture, replace background.webp (portrait phone, 1080 x 2340)
+   and background-wide.webp (landscape, 2340 x 1080) with the same names: nothing else needs to change. The scrim's
+   colour may be tinted here; its floor (--scrim-min, style.css) must not be touched: a test holds it. */
+#scene {
+  background-color: #10261f;
+  background-image: url("background.webp");
+  --scrim-rgb: 6 18 14;
+  --fx-x: 50%;          /* where theme.js draws sparks, as a share of the screen */
+  --fx-y: 50%;
+}
+@media (orientation: landscape) {
+  #scene {
+    background-image: url("background-wide.webp");
+    --fx-y: 50%;
+  }
+}
+
+/* The tree's lights twinkle and drift through the colours (the hue turns once every --drift). */
+html[data-theme="tree"] #scene {
+  --twinkle: 2.8s;
+  --drift: 18s;
+  --bulb-1: #ff5d5d;
+  --bulb-2: #ffd166;
+  --bulb-3: #6aa0ff;
+  --bulb-4: #7fe08c;
+}
+html[data-theme="tree"] .scene-lights {
+  animation: drift var(--drift, 18s) linear infinite;
+}
+.scene-glow {
+  opacity: 1;
+  background: radial-gradient(ellipse 60% 36% at 50% 52%, rgb(255 200 110 / .12), transparent 72%);
+  animation: breathe 4s ease-in-out infinite alternate;
+}

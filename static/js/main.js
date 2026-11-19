@@ -8,6 +8,7 @@ import { loadMovies, watchPosters } from "./grid.js";
 import { wireSearch } from "./search.js";
 import { showSettings } from "./settings.js";
 import { wireSurprise } from "./surprise.js";
+import { startTheme } from "./theme.js";
 
 let gridScroll = 0;
 
@@ -42,6 +43,7 @@ function route() {
 
 async function start() {
   document.title = APP_NAME;
+  await startTheme();   // first, so the list never flashes the wrong light or dark; if it can't load, the plain look stays
   try {
     await api("/api/health");
   } catch (e) {

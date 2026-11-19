@@ -1,4 +1,4 @@
-/* It's a Wonderful App. Matinee's palette, type and grid (spec §14.1); themes layer on top later (§14.3). */
+/* It's a Wonderful App. Matinee's palette, type and grid (spec §14.1); the Advent themes layer on top (§14.3). */
 @font-face {
   font-family: Figtree;
   src: url("fonts/figtree-latin-wght.woff2") format("woff2");
@@ -14,23 +14,29 @@
 }
 
 :root {
+  /* Colours are light-dark(light, dark) pairs. The dark half is Matinee's palette; the light half (snowy blue-white)
+     shows only in the plain period when Light, or System on a light phone, is chosen. Themes are always dark. */
+  color-scheme: light dark;
+
   /* surfaces: near-black, slightly blue so posters pop */
-  --page: #0b0b0e;
-  --card: #16161c;
-  --raised: #202029;
-  --line: #2c2c38;
+  --page: light-dark(#eef2f6, #0b0b0e);
+  --card: light-dark(#ffffff, #16161c);
+  --raised: light-dark(#e1e8f0, #202029);
+  --line: light-dark(#c3ccd8, #2c2c38);
 
   /* ink: warm ivory, like a lit screen in a dark room */
-  --ink: #f3ead8;
-  --ink-2: #b8b0a1;       /* secondary text: year, runtime, labels */
-  --ink-3: #938d80;       /* hints, captions (>= 4.5:1 on every surface) */
+  --ink: light-dark(#1b1d24, #f3ead8);
+  --ink-2: light-dark(#454b59, #b8b0a1);       /* secondary text: year, runtime, labels */
+  --ink-3: light-dark(#585e6d, #938d80);       /* hints, captions (>= 4.5:1 on every surface) */
 
   /* accents */
   --red: #c8272d;         /* cinema red: primary buttons, active chip */
   --accent: var(--red);
-  --accent-ink: #f3ead8;
-  --accent-text: #ef5a52; /* red used as text/links on dark */
-  --amber: #f2b544;       /* marquee bulb: family rating star; sparingly */
+  --accent-ink: light-dark(#ffffff, #f3ead8);
+  --accent-text: light-dark(#b0171d, #ef5a52); /* red used as text/links */
+  --amber: #f2b544;       /* marquee bulb: family rating star on its dark chip; sparingly */
+  --amber-text: light-dark(#7a4b00, #f2b544);  /* the same gold used as text on the page */
+  --ok-text: light-dark(#1b6a36, #5cc178);     /* "ready to watch" green used as text */
 
   /* people: Matinee's palette keys green, blue, red, pink, purple */
   --p-user1: #5cc178;
@@ -61,13 +67,36 @@
   --r-card: 8px;
   --r-sheet: 16px;
 
-  --shadow: 0 6px 24px rgb(0 0 0 / .45);
+  --shadow-color: light-dark(rgb(30 40 60 / .22), rgb(0 0 0 / .45));
+  --shadow: 0 6px 24px var(--shadow-color);
+  --header-bg: light-dark(rgb(238 242 246 / .92), rgb(11 11 14 / .92));
+  --ph-from: light-dark(#dfe6ee, #242430);   /* the titled poster placeholder */
+  --ph-to: light-dark(#cdd6e1, #13131a);
   --tap: 44px;            /* minimum tap target (spec §4) */
 
-  color-scheme: dark;
   --field: var(--raised);
-  --field-border: #6e6e7e;
-  --focus: var(--amber);
+  --field-border: light-dark(#7a8392, #6e6e7e);
+  --focus: light-dark(#1d4ed8, #f2b544);
+
+  /* the scrim between a theme's scene and the content (§14.3): its alpha never goes below --scrim-min, which
+     tests/test_theme_ui.py checks against the brightest scene a drawing could be (white). A theme.css may change
+     the scrim's colour (--scrim-rgb), never --scrim-min. */
+  --scrim-rgb: 8 8 12;
+  --scrim-min: .82;
+}
+
+/* The settings screen's Light / Dark / System sets data-scheme on <html> (theme.js); System follows the phone. */
+html[data-scheme="light"] { color-scheme: light; }
+html[data-scheme="dark"] { color-scheme: dark; }
+
+/* An Advent theme is always dark, and its text colours are lifted so that every pair clears 4.5:1 over the scrim
+   even when the drawing under it is white (the test derives the scrim's floor from these). */
+html[data-theme] {
+  color-scheme: dark;
+  --ink-2: #dcd4c3;
+  --ink-3: #cfc7b5;
+  --accent-text: #ffa39c;
+  --ok-text: #86e3a0;
 }
 
 *, *::before, *::after {
@@ -110,7 +139,7 @@ input, select, button, textarea {
   position: sticky;
   top: 0;
   z-index: 50;
-  background: rgba(11, 11, 14, 0.92);
+  background: var(--header-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
@@ -139,6 +168,11 @@ input, select, button, textarea {
 
 .brand-name {
   font-size: inherit;   /* the h1 takes the brand's size, not the browser's 2em */
+}
+
+main, .site-footer {
+  position: relative;   /* above the theme's scene (z-index 0) */
+  z-index: 1;
 }
 
 main {
@@ -211,7 +245,7 @@ main {
   justify-content: center;
   padding: var(--s2);
   text-align: center;
-  background: linear-gradient(160deg, #242430, #13131a);
+  background: linear-gradient(160deg, var(--ph-from), var(--ph-to));
   border: 1px solid var(--line);
   color: var(--ink-2);
   font-size: var(--fs-sm);
@@ -541,7 +575,7 @@ main {
 }
 .card-where[data-kind="owned"], .card-where[data-kind="subscribed"], .card-where[data-kind="free"],
 .where-line[data-kind="owned"], .where-line[data-kind="subscribed"], .where-line[data-kind="free"] {
-  color: var(--p-user1);   /* ready to watch */
+  color: var(--ok-text);   /* ready to watch */
 }
 .where-list {
   list-style: none;
@@ -686,7 +720,7 @@ main {
   height: 28px;
   border-radius: 50%;
   background: var(--ink-3);
-  color: var(--page);
+  color: #0b0b0e;
   font-size: var(--fs-sm);
   font-weight: 800;
   line-height: 1;
@@ -698,7 +732,7 @@ main {
 .dot[data-color="purple"] { background: var(--p-user5); }
 .rating-head {
   font-weight: 700;
-  color: var(--amber);
+  color: var(--amber-text);
 }
 .sync-note {
   margin: var(--s3) 0 0;
@@ -762,7 +796,7 @@ main {
 }
 .rate-val {
   font-weight: 800;
-  color: var(--amber);
+  color: var(--amber-text);
 }
 .rate-btns {
   display: grid;
@@ -863,7 +897,7 @@ main {
 }
 .continue-status[data-status="tonight"],
 .continue-status[data-status="watching"] {
-  color: var(--amber);
+  color: var(--amber-text);
 }
 .sheet-text {
   color: var(--ink-2);
@@ -894,7 +928,7 @@ main {
 .tonight-status {
   margin-top: var(--s4);
   font-weight: 700;
-  color: var(--amber);
+  color: var(--amber-text);
 }
 .tonight-status + .detail-actions {
   margin-top: var(--s2);
@@ -902,4 +936,114 @@ main {
 .rate-row-dim .rate-name {
   color: var(--ink-3);   /* not at the viewing: still rateable, just after the ones who were */
   font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- Advent themes (spec §14.3)
+   index.html has one #scene behind everything; theme.js sets data-theme on <html> and loads
+   static/themes/<key>/theme.css, which holds that theme's art, glow and tuning (--flicker, --twinkle, --fx-x ...).
+   Layers, bottom to top: the drawing (#scene's own background), the scrim, a glow, strands of lights down the two
+   side gutters (main's 16 px padding keeps text out of them), and the snow-and-sparks canvas. */
+#scene {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #0b0b0e center / cover no-repeat;
+}
+html:not([data-theme]) #scene {
+  display: none;
+}
+.scene-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom,
+    rgb(var(--scrim-rgb) / .92) 0,
+    rgb(var(--scrim-rgb) / var(--scrim-min)) 24%,
+    rgb(var(--scrim-rgb) / var(--scrim-min)) 76%,
+    rgb(var(--scrim-rgb) / .92) 100%);
+}
+.scene-glow {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+.scene-lights {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  display: none;
+}
+.scene-lights-l { left: 0; }
+.scene-lights-r { right: 0; }
+html[data-theme="toystore"] .scene-lights,
+html[data-theme="tree"] .scene-lights {
+  display: block;
+}
+/* Four bulbs every 60 px; the two layers twinkle in opposite phases. The bulb colours are tokens a theme sets. */
+.scene-lights::before,
+.scene-lights::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-size: 12px 60px;
+  background-repeat: repeat-y;
+  animation: twinkle var(--twinkle, 2.6s) ease-in-out infinite alternate;
+}
+.scene-lights::before {
+  background-image:
+    radial-gradient(circle at 50% 10px, var(--bulb-1, #f2b544) 0 2.5px, transparent 6px),
+    radial-gradient(circle at 50% 40px, var(--bulb-3, #f2b544) 0 2.5px, transparent 6px);
+}
+.scene-lights::after {
+  background-image:
+    radial-gradient(circle at 50% 25px, var(--bulb-2, #f2b544) 0 2.5px, transparent 6px),
+    radial-gradient(circle at 50% 55px, var(--bulb-4, #f2b544) 0 2.5px, transparent 6px);
+  animation-delay: calc(var(--twinkle, 2.6s) * -.5);
+  animation-direction: alternate-reverse;
+}
+#fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+@keyframes twinkle {
+  from { opacity: .25; }
+  to { opacity: 1; }
+}
+@keyframes flicker {   /* a fire never repeats evenly: uneven stops, no steady beat */
+  0%, 100% { opacity: .7; transform: scale(1); }
+  14% { opacity: 1; transform: scale(1.03, 1.06); }
+  27% { opacity: .62; transform: scale(.99, .96); }
+  41% { opacity: .95; transform: scale(1.02, 1.04); }
+  58% { opacity: .68; transform: scale(1, .98); }
+  73% { opacity: 1; transform: scale(1.03, 1.07); }
+  86% { opacity: .78; transform: scale(1, 1); }
+}
+@keyframes breathe {
+  from { opacity: .55; }
+  to { opacity: 1; }
+}
+@keyframes drift {   /* the tree's lights wander through the colours */
+  to { filter: hue-rotate(360deg); }
+}
+
+/* Reduced motion (spec §14.3): nothing animates. theme.js also stops the canvas, so the scene is a still picture. */
+@media (prefers-reduced-motion: reduce) {
+  #scene *, #scene *::before, #scene *::after {
+    animation: none !important;
+  }
+  #scene .scene-glow {
+    opacity: .85;
+  }
+}
+
+/* ---------------------------------------------------------------- Settings: themes and the look */
+.look-box .seg {
+  margin-bottom: var(--s2);
+}
+.look-box .chips {
+  margin-top: 0;
 }
