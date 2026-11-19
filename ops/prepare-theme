@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Turn a photo of a drawing into a theme's two pictures (spec §14.3, §14.4, plan Task 14).
+
+  ops/prepare-theme <key> <photo>     <key> is a folder in static/themes (fireplace, toystore, tree, sleigh)
+
+It writes static/themes/<key>/background.webp (1080 x 2340, portrait for a phone) and background-wide.webp (2340 x
+1080, landscape for a desktop). Each is cut from the middle of the photo, resized, saved as WebP at quality 82, with
+the photo's rotation applied and all EXIF data left out (GPS, camera, time). The photo itself is never changed: keep
+the original in art/originals/. Needs Pillow (py3-pillow on Alpine). Route-free and standalone: it never imports app.
+
+Exit status: 0 written, 1 the photo could not be read, 2 bad arguments (unknown key)."""
+import argparse
+import math
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+from PIL import Image, ImageOps, UnidentifiedImageError
+
+APP_DIR = Path(__file__).resolve().parent.parent
+THEMES_DIR = APP_DIR / "static" / "themes"
+PORTRAIT = (1080, 2340)
+LANDSCAPE = (2340, 1080)
+QUALITY = 82
+
+
+def theme_keys(themes_dir):
+    """The theme folders: each one has a theme.css."""
+    return sorted(p.name for p in Path(themes_dir).iterdir() if (p / "theme.css").is_file())
+
+
+def cover(img, size):
+    """Scale the picture so it covers `size`, then cut the middle out: nothing is stretched."""
+    w, h = size
+    scale = max(w / img.width, h / img.height)
+    big = img.resize((math.ceil(img.width * scale), math.ceil(img.height * scale)), Image.Resampling.LANCZOS)
+    left, top = (big.width - w) // 2, (big.height - h) // 2
+    return big.crop((left, top, left + w, top + h))
+
+
+def save_webp(img, path):
+    """Write through a temp file in the same folder, so a half-written picture never replaces a good one."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".webp.tmp")
+    os.close(fd)
+    try:
+        img.save(tmp, "WEBP", quality=QUALITY, method=6)  # no exif= argument: the metadata is dropped here
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
+def prepare(key, photo, themes_dir=THEMES_DIR):
+    """Write both pictures for theme `key` from the photo. Returns the two paths. Raises ValueError for an unknown key
+    and OSError or UnidentifiedImageError for a photo that cannot be read (nothing is written then)."""
+    if key not in theme_keys(themes_dir):
+        raise ValueError(f"no theme called {key!r}; choose one of: {', '.join(theme_keys(themes_dir))}")
+    with Image.open(photo) as opened:
+        img = ImageOps.exif_transpose(opened)   # turn the picture the way the camera held it
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        portrait, wide = cover(img, PORTRAIT), cover(img, LANDSCAPE)
+    folder = Path(themes_dir) / key
+    outputs = [folder / "background.webp", folder / "background-wide.webp"]
+    save_webp(portrait, outputs[0])
+    save_webp(wide, outputs[1])
+    return outputs
+
+
+def main(argv=None, themes_dir=THEMES_DIR):
+    parser = argparse.ArgumentParser(description="Make a theme's background pictures from a photo of a drawing.")
+    parser.add_argument("key", help="the theme folder: " + ", ".join(theme_keys(themes_dir)))
+    parser.add_argument("photo", help="the photo, for example art/originals/fireplace.jpg")
+    args = parser.parse_args(argv)
+    try:
+        outputs = prepare(args.key, args.photo, themes_dir)
+    except ValueError as err:
+        print(f"prepare-theme: {err}", file=sys.stderr)
+        return 2
+    except (OSError, UnidentifiedImageError) as err:
+        print(f"prepare-theme: could not read {args.photo}: {err}", file=sys.stderr)
+        return 1
+    for out in outputs:
+        print(f"prepare-theme: wrote {out}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

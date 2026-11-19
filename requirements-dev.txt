@@ -4,6 +4,8 @@ Flask>=3.0.0
 PyJWT>=2.8.0
 cryptography>=42.0.0
 pytest>=8.0.0
+# Image pipeline tests (tests/test_prepare_theme.py); the app's runtime copy is py3-pillow from apk (installer/setup-head.sh)
+Pillow>=10.0.0
 # UI smoke tests (tests/test_ui_smoke.py); Chromium comes from `python -m playwright install chromium`
 playwright>=1.48
 # Lint, pinned so a new release cannot turn CI red on its own (same pins as .github/workflows/ci.yml)
