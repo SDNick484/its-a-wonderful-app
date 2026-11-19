@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+# A newer push to the same pull request cancels the superseded run. Pushes to main are never cancelled.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Every job runs steps of scripts/gate.sh, the same command the Definition of done in CLAUDE.md runs locally,
+# so CI and the local gate cannot drift. A new check goes in the gate script.
+jobs:
+  lint:
+    name: Lint (shellcheck + ruff)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      # CI-only tools, pinned (same pins as requirements-dev.txt) so a new release cannot turn the job red on its own.
+      - name: Install lint tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install "ruff==0.16.9" "shellcheck-py==0.11.0.1"
+
+      - name: ruff and shellcheck
+        run: sh scripts/gate.sh lint
+
+  ui-smoke:
+    name: UI smoke (Playwright + Chromium, 412 px)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: "requirements-dev.txt"
+
+      - name: Install dependencies and Chromium
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          python -m playwright install --with-deps chromium
+
+      # REQUIRE_UI=1 (set by the ui step): a missing Playwright or Chromium fails instead of skipping.
+      - name: Run the UI smoke tests at 412 x 915 and 360 px
+        run: sh scripts/gate.sh ui
+
+  test-python:
+    name: Python ${{ matrix.python-version }} on Ubuntu
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+          cache-dependency-path: "requirements-dev.txt"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          command -v sqlite3 >/dev/null || { sudo apt-get update && sudo apt-get install -y sqlite3; }
+
+      # The UI smoke tests skip here (no Chromium installed); the ui-smoke job runs them.
+      - name: pytest and node --check on every ES module
+        run: sh scripts/gate.sh test js
+
+  test-alpine:
+    name: Alpine Linux Container (production parity)
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      # The installer's runtime packages plus test tools: no pip, so a dependency outside Alpine's py3-* fails here.
+      - name: Install Alpine packages
+        run: |
+          apk add --no-cache \
+            python3 \
+            py3-flask \
+            py3-jwt \
+            py3-cryptography \
+            py3-pillow \
+            py3-pytest \
+            sqlite \
+            tzdata \
+            nodejs \
+            bash \
+            tar
+
+      - name: pytest, installer build and node --check under Alpine (musl libc + apk packages)
+        run: sh scripts/gate.sh test build js

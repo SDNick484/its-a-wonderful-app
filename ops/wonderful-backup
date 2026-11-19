@@ -1,0 +1,69 @@
+#!/bin/sh
+# Nightly backup of It's a Wonderful App (installed by setup-wonderful.sh into /etc/periodic/daily):
+#   $LOCAL_DIR/<date>/wonderful.db.gz          the database, via sqlite3 .backup (consistent while the app runs)
+#   $LOCAL_DIR/<date>/wonderful-posters.tar.gz posters/ (TMDB art; re-fetchable, but a restore is instant)
+#   $LOCAL_DIR/<date>/wonderful-art.tar.gz     art/ (theme art prepared on the host)
+#   $BACKUP_TARGET/db/<date>/ and $BACKUP_TARGET/files/wonderful/   (if BACKUP_TARGET is set)
+# Every file is written under a .part name and renamed when complete, so a backup is never half a file.
+# Days older than KEEP_DAYS are pruned. Config: /etc/conf.d/ops (optional)   Log: /var/log/ops.log
+# (WONDERFUL_DATA, LOCAL_DIR and LOG may be overridden for a local test run.)
+set -u
+OPS_CONF=${OPS_CONF:-/etc/conf.d/ops}
+# shellcheck source=/dev/null  # optional config, path comes from the environment
+[ -f "$OPS_CONF" ] && . "$OPS_CONF"
+LOCAL_DIR=${LOCAL_DIR:-/var/backups/wonderful}
+KEEP_DAYS=${KEEP_DAYS:-14}
+BACKUP_TARGET=${BACKUP_TARGET:-}
+STAMP=$(date +%Y-%m-%d)
+LOG=${LOG:-/var/log/ops.log}
+DATA=${WONDERFUL_DATA:-/var/lib/wonderful}
+DB=$DATA/wonderful.db
+log() { echo "$(date '+%F %T') wonderful-backup: $*" >> "$LOG"; }
+
+fail=0
+day="$LOCAL_DIR/$STAMP"
+mkdir -p "$day"
+out="$day/wonderful.db"
+if [ -f "$DB" ]; then
+  rm -f "$out.part" "$out.gz.part"
+  if sqlite3 "$DB" ".backup '$out.part'" && [ "$(sqlite3 "$out.part" 'PRAGMA integrity_check;')" = "ok" ] \
+     && gzip -c "$out.part" > "$out.gz.part" && mv -f "$out.gz.part" "$out.gz"; then
+    log "ok wonderful.db ($(du -h "$out.gz" | cut -f1))"
+  else
+    log "FAILED wonderful.db"; fail=1
+  fi
+  rm -f "$out.part" "$out.gz.part"
+else
+  log "FAILED: no database at $DB"; fail=1
+fi
+
+for dir in posters art; do
+  [ -d "$DATA/$dir" ] || continue
+  tgz="$day/wonderful-$dir.tar.gz"
+  if tar -czf "$tgz.part" -C "$DATA" "$dir" && mv -f "$tgz.part" "$tgz"; then
+    log "ok $dir/ ($(find "$DATA/$dir" -type f | wc -l | tr -d ' ') files)"
+  else
+    rm -f "$tgz.part"; log "FAILED $dir/"; fail=1
+  fi
+done
+find "$LOCAL_DIR" -mindepth 1 -maxdepth 1 -type d -mtime +"$KEEP_DAYS" -exec rm -rf {} + 2>/dev/null
+
+if [ -n "$BACKUP_TARGET" ]; then
+  if [ -d "$BACKUP_TARGET" ] && [ -w "$BACKUP_TARGET" ]; then
+    mkdir -p "$BACKUP_TARGET/db/$STAMP" "$BACKUP_TARGET/files/wonderful"
+    [ -f "$out.gz" ] && { cp -a "$out.gz" "$BACKUP_TARGET/db/$STAMP/" || fail=1; }
+    for dir in posters art; do
+      [ -d "$DATA/$dir" ] || continue
+      mkdir -p "$BACKUP_TARGET/files/wonderful/$dir"
+      cp -au "$DATA/$dir/." "$BACKUP_TARGET/files/wonderful/$dir/" || fail=1
+    done
+    log "copied to $BACKUP_TARGET"
+  else
+    log "FAILED: BACKUP_TARGET $BACKUP_TARGET is not a writable directory (is it mounted?)"; fail=1
+  fi
+fi
+
+if [ "$fail" != 0 ] && [ -x /usr/local/bin/ops-notify ]; then
+  /usr/local/bin/ops-notify "Wonderful backup" down "Last night's It's a Wonderful App backup had a problem. See $LOG."
+fi
+exit $fail

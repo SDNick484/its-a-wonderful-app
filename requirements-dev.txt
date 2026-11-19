@@ -1,0 +1,11 @@
+# Development and CI only. On the host the app runs on Alpine py3-* packages (installer/setup-head.sh); nothing
+# here is installed there.
+Flask>=3.0.0
+PyJWT>=2.8.0
+cryptography>=42.0.0
+pytest>=8.0.0
+# UI smoke tests (tests/test_ui_smoke.py); Chromium comes from `python -m playwright install chromium`
+playwright>=1.48
+# Lint, pinned so a new release cannot turn CI red on its own (same pins as .github/workflows/ci.yml)
+ruff==0.16.9
+shellcheck-py==0.11.0.1
