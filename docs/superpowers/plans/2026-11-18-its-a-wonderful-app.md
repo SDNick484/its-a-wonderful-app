@@ -22,7 +22,7 @@
 - Ratings: 0.0–10.0 in 0.5 steps. Matinee receives the per-person mean rounded to the nearest 0.5, half up (8.25 → 8.5, 8.75 → 9.0).
 - TMDB attribution (logo + notice) on the about screen; JustWatch attribution wherever providers show.
 - Conventional Commits, author `SDNick484 <SDNick484@users.noreply.github.com>`, one logical change per commit, one PR per task. OpenRC (`rc-service wonderful restart`), `vim`.
-- Every task tagged **(M)** ends its PR description with a "Try it, Midge" note: what to open on the phone after Nick deploys, and what she should see.
+- Every task tagged **(K)** ends its PR description with a "Try it" note: what to open on the phone after Nick deploys, and what they should see.
 
 ## Review Focus
 
@@ -78,7 +78,7 @@ def test_hook_requires_secret(client, monkeypatch):
 - [ ] **Step 4: Run** `python -m pytest -q && ruff check && for f in static/js/*.js; do node --check "$f"; done && sh installer/build.sh && sh -n dist/setup-wonderful.sh` → all pass.
 - [ ] **Step 5: Commit** `feat: app skeleton, schema v1, auth, CI and installer`. After merge, Nick deploys and confirms `curl http://<lan-ip>:<port>/api/health` and loading the page on the phone, and records in `README.md` how the phone reaches it on the LAN (spec §5 caveat).
 
-### Task 2: TMDB client, add a movie, grid and detail view (M)
+### Task 2: TMDB client, add a movie, grid and detail view (K)
 
 **Files:**
 - Create: `tmdb.py`, `movies.py`, `images.py`, `static/js/{grid.js,detail.js,add.js}`, `static/tmdb.svg`
@@ -109,7 +109,7 @@ def test_tmdb_search_miss_returns_empty_with_message(client, tmdb_fixtures): ...
 - [ ] **Step 2: Run** `pytest tests/test_movies_api.py -q` → FAIL.
 - [ ] **Step 3: Implement.** Posters download once to `$DATA_DIR/posters/<tmdb_type>-<id>-w342.jpg`. US certification = first non-empty `certification` in the `US` release-date set, else `NR`. Grid card: poster, title, year, family rating slot (empty for now). Detail: backdrop, overview, runtime, cert, cast, collection, parent note (editable), Remove (confirm). Add sheet: search box → results → **Add to our list**.
 - [ ] **Step 4: Run** the full suite → PASS.
-- [ ] **Step 5: Commit** `feat(movies): add movies from TMDB with grid and detail view`. *Try it, Midge:* add *Prancer* from the + button and watch its poster appear.
+- [ ] **Step 5: Commit** `feat(movies): add movies from TMDB with grid and detail view`. *Try it:* add *Prancer* from the + button and watch its poster appear.
 
 ### Task 3: Seed the starting list of 41
 
@@ -127,7 +127,7 @@ def test_tmdb_search_miss_returns_empty_with_message(client, tmdb_fixtures): ...
 - [ ] **Step 4: Run** → PASS.
 - [ ] **Step 5: Commit** `feat(seed): starting list of 41 Christmas movies`.
 
-### Task 4: Services and where to watch (M)
+### Task 4: Services and where to watch (K)
 
 **Files:**
 - Create: `providers.py`, `data/services.json`, `static/js/settings.js`
@@ -142,7 +142,7 @@ def test_tmdb_search_miss_returns_empty_with_message(client, tmdb_fixtures): ...
 - [ ] **Step 2: Run** → FAIL.
 - [ ] **Step 3: Implement.** `services.json` maps each family service to TMDB provider ids and the LG `tv_source` names seen on the TV ("Disney+", "Netflix", "HBO Max", "Hulu", "Peacock", "Paramount+", "Prime Video", "Fandango at Home", "YouTube TV"; Apple TV has none). Subscribed: Netflix, Disney+, Hulu, Prime Video, Fandango at Home, YouTube TV. Considering: HBO Max, Peacock, Paramount+, Apple TV. Settings screen lists services with three-way toggles. Card line shows the first `where_to_watch` entry; detail shows all plus "Data from JustWatch".
 - [ ] **Step 4: Run** → PASS.
-- [ ] **Step 5: Commit** `feat(providers): where to watch and subscriptions`. *Try it, Midge:* open Settings → Subscriptions and see your services.
+- [ ] **Step 5: Commit** `feat(providers): where to watch and subscriptions`. *Try it:* open Settings → Subscriptions and see your services.
 
 ### Task 5: Matinee client and ownership
 
@@ -161,7 +161,7 @@ def test_tmdb_search_miss_returns_empty_with_message(client, tmdb_fixtures): ...
 - [ ] **Step 4: Run** → PASS.
 - [ ] **Step 5: Commit** `feat(matinee): read ownership and shelf from Matinee`.
 
-### Task 6: Search: local filter and exact title (M)
+### Task 6: Search: local filter and exact title (K)
 
 **Files:**
 - Create: `search.py`, `static/js/search.js`
@@ -173,9 +173,9 @@ def test_tmdb_search_miss_returns_empty_with_message(client, tmdb_fixtures): ...
 
 - [ ] **Step 1: Failing tests:** `test_elf_exact` (`"elf"` → mode exact, Elf only); `test_the_santa_clause_matches_without_the`; `test_actor_search_tim_allen` (both Santa Clause films, Christmas with the Kranks, Jingle All the Way); `test_collection_search_christmas_chronicles`; `test_empty_query_returns_whole_list`.
 - [ ] **Step 2–4:** Implement; the search box filters the grid as you type, Enter calls `/api/search`. Run → PASS.
-- [ ] **Step 5: Commit** `feat(search): local and exact-title search`. *Try it, Midge:* type "Tim Allen".
+- [ ] **Step 5: Commit** `feat(search): local and exact-title search`. *Try it:* type "Tim Allen".
 
-### Task 7: The randomizer (M)
+### Task 7: The randomizer (K)
 
 **Files:**
 - Create: `randomizer.py`, `static/js/surprise.js`
@@ -188,9 +188,9 @@ def test_tmdb_search_miss_returns_empty_with_message(client, tmdb_fixtures): ...
 
 - [ ] **Step 1: Failing tests:** `test_cap_G_excludes_NR_and_cap_PG_includes_NR` (§7.3); `test_four_christmases_only_at_PG13`; `test_under_90_excludes_null_runtime` (Review Focus 2); `test_three_distinct_picks`; `test_pick_again_excludes_shown_until_exhausted_then_restarts`; `test_fewer_than_three_returns_what_matches`; `test_watched_jan_2_counts_for_new_year` (Review Focus 5); `test_all_chips_off_is_whole_list`.
 - [ ] **Step 2–4:** Implement. The button text is exactly **🎲 Surprise us, ya filthy animals**; Pick Again reads **Keep the change (pick again)**. Chips per spec §12 (rating cap cycles off → G → PG → PG-13), remembered in `localStorage` key `wonderful.surprise.filters`, all off by default; reads guarded with try/catch. "Only 2 match. Try turning off a filter." when short. Run → PASS.
-- [ ] **Step 5: Commit** `feat(surprise): three-pick randomizer with filters`. *Try it, Midge:* press the button with "Up to G" on.
+- [ ] **Step 5: Commit** `feat(surprise): three-pick randomizer with filters`. *Try it:* press the button with "Up to G" on.
 
-### Task 8: People and per-person ratings (M)
+### Task 8: People and per-person ratings (K)
 
 **Files:**
 - Create: `people.py`, `ratings.py`, `static/js/rating.js`
@@ -203,7 +203,7 @@ def test_tmdb_search_miss_returns_empty_with_message(client, tmdb_fixtures): ...
 
 - [ ] **Step 1: Failing tests:** `test_klaus_mean_8_6` (8, 9, 10, 8, 8 → 8.6); `test_clearing_last_rating_gives_null_mean` (Review Focus 4); `test_off_step_is_400`; `test_sync_people_adds_five_and_is_idempotent`; `test_local_only_person_allowed`; UI at 412 px: number buttons 1–10 and ½ each ≥ 44 px, wrap to two rows, no horizontal scroll.
 - [ ] **Step 2–4:** Implement. Grid poster shows ★ mean (or Matinee's rating while `rating_owner = 'matinee'`, Task 9). Detail shows the dot row `● N 8  ● L 9 …` with family colors. Rating sheet per spec §11. Run → PASS.
-- [ ] **Step 5: Commit** `feat(ratings): per-person ratings and family average`. *Try it, Midge:* rate a movie for everyone.
+- [ ] **Step 5: Commit** `feat(ratings): per-person ratings and family average`. *Try it:* rate a movie for everyone.
 
 ### Task 9: Rating sync with Matinee
 
@@ -228,7 +228,7 @@ def test_tmdb_search_miss_returns_empty_with_message(client, tmdb_fixtures): ...
 - [ ] **Step 2–4:** Implement. Run → PASS.
 - [ ] **Step 5: Commit** `feat(sync): keep the family rating in step with Matinee`.
 
-### Task 10: Viewings, Continue Watching, finishing (M)
+### Task 10: Viewings, Continue Watching, finishing (K)
 
 **Files:**
 - Create: `viewings.py`, `ha.py` (outbound part), `static/js/continue.js`
@@ -249,7 +249,7 @@ def test_tmdb_search_miss_returns_empty_with_message(client, tmdb_fixtures): ...
   - `test_progress_labels`.
   - UI: the Continue Watching row appears above the grid only when non-empty; the "Did you finish?" sheet has Yes, Not yet, and "We gave up on it"; a guess is highlighted but not auto-submitted.
 - [ ] **Step 2–4:** Implement. Yes → "Want to rate it?" → Task 8 rating sheet. Run → PASS.
-- [ ] **Step 5: Commit** `feat(viewings): Continue Watching, finishing, Matinee watch and HA movie log`. *Try it, Midge:* pick *Elf* for tonight, then tap "We finished".
+- [ ] **Step 5: Commit** `feat(viewings): Continue Watching, finishing, Matinee watch and HA movie log`. *Try it:* pick *Elf* for tonight, then tap "We finished".
 
 ### Task 11: TV webhook and the finish guess
 
@@ -266,7 +266,7 @@ def test_tmdb_search_miss_returns_empty_with_message(client, tmdb_fixtures): ...
 - [ ] **Step 2–4:** Implement. `docs/home-assistant.md` gives the automation YAML: triggers on the TV `media_player` state and `source` attribute, `rest_command` posting `{"state": "{{ states(tv) }}", "source": "{{ state_attr(tv, 'source') }}", "at": "{{ now().isoformat() }}"}` with `X-Hook-Secret`, entity written as `media_player.family_room_tv` (placeholder). Run → PASS.
 - [ ] **Step 5: Commit** `feat(tv): guess unfinished movies from the Family Room TV`.
 
-### Task 12: AI search with suggestions (M)
+### Task 12: AI search with suggestions (K)
 
 **Files:**
 - Create: `ai.py`
@@ -290,9 +290,9 @@ def test_tmdb_search_miss_returns_empty_with_message(client, tmdb_fixtures): ...
   - `test_suggestions_never_added_without_tap` (no `movies` row after a search).
   - `test_prompt_contains_no_people_or_ratings`.
 - [ ] **Step 2–4:** Implement. "Not on our list yet" section with **Add to our list** per suggestion. Run → PASS.
-- [ ] **Step 5: Commit** `feat(search): AI search with suggestions to add`. *Try it, Midge:* search "a movie about Jesus" and "a musical".
+- [ ] **Step 5: Commit** `feat(search): AI search with suggestions to add`. *Try it:* search "a movie about Jesus" and "a musical".
 
-### Task 13: Themes: calendar, motion, scrim (M)
+### Task 13: Themes: calendar, motion, scrim (K)
 
 **Files:**
 - Create: `themes.py`, `static/js/theme.js`, `static/themes/{fireplace,toystore,tree,sleigh}/{background.webp,background-wide.webp,theme.css}` (placeholders), `tests/test_themes.py`, `tests/test_theme_ui.py`
@@ -316,12 +316,12 @@ def test_theme_for(d, want): assert themes.theme_for(date.fromisoformat(d)) == w
 
   Plus UI tests: `prefers-reduced-motion` → no running animations (`document.getAnimations().length == 0` and canvas loop stopped); hidden tab pauses the loop; title and rating text over every theme ≥ 4.5:1 against the scrim's darkest-allowed background (assert the scrim's computed alpha ≥ the value the test derives); no horizontal scroll at 412 px.
 - [ ] **Step 2–4:** Implement. Motion in CSS and one `<canvas>` for snow and sparks: flicker and rising sparks (fireplace), twinkling window lights (toy store), twinkling and color-drifting lights (tree), sleigh across the moon every 45–90 s (sleigh), gentle snow in all four. Placeholders are flat color scenes in each theme's palette. Run → PASS.
-- [ ] **Step 5: Commit** `feat(themes): Advent themes with motion`. *Try it, Midge:* Settings → Preview themes, then tell us if the flames flicker too fast.
+- [ ] **Step 5: Commit** `feat(themes): Advent themes with motion`. *Try it:* Settings → Preview themes, then tell us if the flames flicker too fast.
 
-### Task 14: Margaret's drawings (M)
+### Task 14: Kid 1's drawings (K)
 
 **Files:**
-- Create: `ops/prepare-theme`, `docs/themes.md`, `art/originals/` (her photos)
+- Create: `ops/prepare-theme`, `docs/themes.md`, `art/originals/` (photos of the drawings)
 - Modify: `static/themes/*/background*.webp`
 - Test: `tests/test_prepare_theme.py`
 
@@ -329,8 +329,8 @@ def test_theme_for(d, want): assert themes.theme_for(date.fromisoformat(d)) == w
 - Produces: `ops/prepare-theme <key> <photo>` → writes `background.webp` (1080 × 2340, center-cropped portrait) and `background-wide.webp` (2340 × 1080) with Pillow, quality 82, EXIF orientation applied and stripped.
 
 - [ ] **Step 1: Failing test** `test_prepare_theme_crops_and_strips_exif` (a rotated 3000 × 4000 JPEG fixture with GPS EXIF → outputs exact sizes, no EXIF).
-- [ ] **Step 2–4:** Implement; `docs/themes.md` is written for Margaret (short steps: draw portrait, daylight photo, put it in `art/originals/`, run the command with Dad, or ask Claude to help clean it up first). Run → PASS.
-- [ ] **Step 5: Commit** `feat(themes): art pipeline`, then one commit per drawing: `feat(themes): Midge's fireplace` and so on. *Try it, Midge:* your drawing behind the posters.
+- [ ] **Step 2–4:** Implement; `docs/themes.md` is written for Kid 1 (short steps: draw portrait, daylight photo, put it in `art/originals/`, run the command with Dad, or ask Claude to help clean it up first). Run → PASS.
+- [ ] **Step 5: Commit** `feat(themes): art pipeline`, then one commit per drawing: `feat(themes): fireplace drawing` and so on. *Try it:* the drawing behind the posters.
 
 ### Task 15: Worth a Month?
 

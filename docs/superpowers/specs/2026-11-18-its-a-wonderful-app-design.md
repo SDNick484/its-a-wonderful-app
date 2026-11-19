@@ -9,7 +9,7 @@
 
 ## 1. Intent
 
-A Christmas movie picker that Nick is building with his oldest daughter Margaret ("Midge"). It's her first
+A Christmas movie picker that Nick is building with one of his kids (called Kid 1 in these docs). It's Kid 1's first
 time building something with AI. The family opens it on a phone on a December evening, finds or is handed a
 movie, picks it, watches it (often over two nights), and rates it. It feels like Matinee, with posters,
 ratings and a dark cinema look, but it's dressed for Christmas and its scene changes each week of Advent.
@@ -18,14 +18,14 @@ It is a **separate app** from Matinee. Matinee stays limited to movies the famil
 licenses on Movies Anywhere or Fandango at Home). This app holds a curated Christmas list, most of which is
 streaming. The two apps share ratings and watches for the movies they have in common.
 
-Margaret's own description of the core loop: *"I open the app, there's a search at the top, I describe what
+Kid 1's own description of the core loop: *"I open the app, there's a search at the top, I describe what
 I want ('a movie related to Jesus', 'a musical') or just say 'Elf', or I tap a randomizer. I select it. Ideally
 it starts on the TV; if not, it at least marks that it's tonight's movie."*
 
 ### Success
 
 - In December 2026 the family uses it to pick most of their Christmas movies.
-- Margaret can explain how a feature she asked for got built, and ran some of the build herself.
+- Kid 1 can explain how a feature they asked for got built, and ran some of the build herself.
 - Ratings and watches agree between this app and Matinee without anyone re-entering them.
 
 ### Goals
@@ -38,7 +38,7 @@ it starts on the TV; if not, it at least marks that it's tonight's movie."*
 5. Continue Watching: a movie can take more than one night. The app guesses "not finished" from the Family
    Room TV through Home Assistant, and asks to confirm.
 6. Per-person ratings (0 to 10 in 0.5 steps) whose average is shown and becomes Matinee's household rating.
-7. Four themes that rotate on the Sundays of Advent through January 6, drawn by Margaret, with motion on top.
+7. Four themes that rotate on the Sundays of Advent through January 6, drawn by Kid 1, with motion on top.
 8. "Worth a Month?": which streaming service the family doesn't have would add the most unwatched movies.
 
 ### Non-goals
@@ -51,8 +51,8 @@ it starts on the TV; if not, it at least marks that it's tonight's movie."*
 
 ### Anti-goals (fails even if it technically works)
 
-- Margaret can't follow how it's built, because the issues are too big or too abstract for her to run.
-- The randomizer lands on a rental at 8 pm, or on a PG-13 movie on a night the twins are picking.
+- Kid 1 can't follow how it's built, because the issues are too big or too abstract for them to run.
+- The randomizer lands on a rental at 8 pm, or on a PG-13 movie on a night the younger kids are picking.
 - "Watched" or a rating disagrees between this app and Matinee by New Year's.
 - The scene behind the posters makes titles or ratings hard to read.
 - The app quietly adds movies to the list. Only a person adds a movie.
@@ -64,25 +64,25 @@ it starts on the TV; if not, it at least marks that it's tonight's movie."*
 | 1 | Separate app or a Matinee mode | Separate app, sibling to Matinee in look and stack | Nick |
 | 2 | Matinee scope | Matinee only holds owned movies (physical, or permanent digital on Movies Anywhere / Fandango at Home) | Nick |
 | 3 | How the apps connect | LAN API calls; this app reads ownership and ratings from Matinee and writes ratings and watches back (§8) | Nick, approach A |
-| 4 | Which movies | A curated list, starting from Nick's list (§17), grown over time | Margaret |
-| 5 | New movies from search | Search may suggest movies not on the list, with an "Add to our list" button. Never added automatically | Margaret |
-| 6 | Unfinished movies | A Continue Watching row, like Disney+ | Margaret |
-| 7 | Detecting "not finished" | Guess from the TV's on/off and input changes vs. the movie's runtime, then ask "Did you finish?" with the guess preselected | Margaret (accepted proposal) |
-| 8 | After a movie | Ask "Want to rate it?" | Margaret |
-| 9 | Rating scale | Same as Matinee: 0 to 10 in 0.5 steps | Nick, Margaret |
-| 10 | Who rates | Each person rates individually; the average is the family rating and is what Matinee receives | Margaret, Nick agreed |
+| 4 | Which movies | A curated list, starting from Nick's list (§17), grown over time | Kid 1 |
+| 5 | New movies from search | Search may suggest movies not on the list, with an "Add to our list" button. Never added automatically | Kid 1 |
+| 6 | Unfinished movies | A Continue Watching row, like Disney+ | Kid 1 |
+| 7 | Detecting "not finished" | Guess from the TV's on/off and input changes vs. the movie's runtime, then ask "Did you finish?" with the guess preselected | Kid 1 (accepted proposal) |
+| 8 | After a movie | Ask "Want to rate it?" | Kid 1 |
+| 9 | Rating scale | Same as Matinee: 0 to 10 in 0.5 steps | Nick, Kid 1 |
+| 10 | Who rates | Each person rates individually; the average is the family rating and is what Matinee receives | Kid 1, Nick agreed |
 | 11 | Rating conflicts | Before anyone rates here, show Matinee's rating. After, this app owns the rating; a later Matinee edit raises a notice, never a silent overwrite | Proposed, not objected to |
-| 12 | Randomizer pool | All movies on the list, narrowed by filter chips | Margaret |
-| 13 | Randomizer filters | Animated, Live action, rating cap (up to G / PG / PG-13), Under 90 min, Not watched this year, Ready to watch | Margaret, Nick |
-| 14 | Randomizer output | Three picks at once; Pick Again replaces all three | Margaret |
+| 12 | Randomizer pool | All movies on the list, narrowed by filter chips | Kid 1 |
+| 13 | Randomizer filters | Animated, Live action, rating cap (up to G / PG / PG-13), Under 90 min, Not watched this year, Ready to watch | Kid 1, Nick |
+| 14 | Randomizer output | Three picks at once; Pick Again replaces all three | Kid 1 |
 | 15 | Subscriptions | Netflix, Disney+, Hulu, Prime Video, Fandango at Home, YouTube TV. Unsure / would add for a month: HBO Max, Peacock, Paramount+, Apple TV | Nick |
-| 16 | Worth a Month? | Yes | Nick, Margaret |
-| 17 | Themes | Fireplace, toy store, Christmas tree, Santa's sleigh at night; one per Advent week from the first Sunday of Advent, Santa through January 6; plain (light or dark) the rest of the year | Margaret |
-| 18 | Theme art | Margaret draws the scenes; AI may clean them up; motion (flames, snow, lights, sleigh) is code on top | Margaret |
-| 19 | Name | **It's a Wonderful App** (Lauren). The randomizer button reads "🎲 Surprise us, ya filthy animals" (Margaret) | Family |
+| 16 | Worth a Month? | Yes | Nick, Kid 1 |
+| 17 | Themes | Fireplace, toy store, Christmas tree, Santa's sleigh at night; one per Advent week from the first Sunday of Advent, Santa through January 6; plain (light or dark) the rest of the year | Kid 1 |
+| 18 | Theme art | Kid 1 draws the scenes; AI may clean them up; motion (flames, snow, lights, sleigh) is code on top | Kid 1 |
+| 19 | Name | **It's a Wonderful App** (Lauren). The randomizer button reads "🎲 Surprise us, ya filthy animals" (Kid 1) | Family |
 | 20 | Free-with-ads services | Count as "ready to watch" | Proposed, not objected to |
 | 21 | How the family streams | The LG's built-in apps, so the TV's `source` names the service | Nick |
-| 22 | Deployments | Nick deploys and manages releases with Margaret; each merged PR goes to the live app, with no staging copy | Nick |
+| 22 | Deployments | Nick deploys and manages releases with Kid 1; each merged PR goes to the live app, with no staging copy | Nick |
 | 23 | HA movie log | Finishing a movie here adds it to the Family Room dashboard's movie log (§8.5) | Nick |
 
 ## 3. Approaches considered
@@ -277,7 +277,7 @@ All calls use Matinee's existing editor API with `MATINEE_API_KEY` as `Authoriza
 | Is it owned, and where | `GET /admin/api/tmdb/<tmdb_id>/owned` → `{title_id, copies[{label, location_path…}], summary}` |
 | Household rating | `GET /admin/api/titles/<title_id>` → `user_rating` |
 | Set household rating | `PUT /admin/api/titles/<title_id>/rating` `{"rating": 8.5}` (0.5 steps, else 400) |
-| Log a watch | `POST /admin/api/titles/<title_id>/watches` `{"watched_date": "2026-12-12", "attendees": ["Nick","Lauren","Midge","Alice","Paige"]}` |
+| Log a watch | `POST /admin/api/titles/<title_id>/watches` `{"watched_date": "2026-12-12", "attendees": ["Nick","Lauren","Kid 1","Kid 2","Kid 3"]}` |
 | People | `GET /admin/api/people` |
 
 ### 8.1 Ownership refresh
@@ -307,11 +307,11 @@ A Matinee outage never blocks the app: it shows the last known value with "(as o
   prefers the movie.
 - Matinee's own seasonal lists (v12 has a Christmas list) are unrelated to this app's list and aren't read.
 
-**Scenario: rating Klaus.** *Klaus* isn't owned. After the credits, the family rates N 8, L 9, M 10, A 8, P 8.
+**Scenario: rating Klaus.** *Klaus* isn't owned. After the credits, the family rates N 8, L 9, K1 10, K2 8, K3 8.
 The poster shows ★ 8.6. Nothing goes to Matinee.
 
 **Scenario: rating Elf.** *Elf* is owned on Blu-ray with Matinee rating 9.0. Before tonight the poster shows
-★ 9.0. Tonight N 8.5, L 9, M 10, A 9, P 8 → mean 8.9, shown ★ 8.9; Matinee gets `{"rating": 9.0}`.
+★ 9.0. Tonight N 8.5, L 9, K1 10, K2 9, K3 8 → mean 8.9, shown ★ 8.9; Matinee gets `{"rating": 9.0}`.
 
 ### 8.3 Watches
 
@@ -429,10 +429,10 @@ nights without the webhook.
 - **Yes:** `finished`, `finished_on` = date of the last session (or today), then "Want to rate it?" (§11), then
   the Matinee watch (§8.3).
 
-**Scenario: Home Alone over two nights.** Dec 12, 7:30 pm: Margaret taps Watch tonight on *Home Alone* (103 min).
-7:31 the TV switches to Disney+ → session opens. 8:21 TV off → 50 min, guess not finished. Dec 13 she opens the
-app: "Did you finish *Home Alone*?" with Not yet highlighted. She taps it. Continue Watching shows *Home Alone*,
-"About halfway". She taps it, then **Keep watching tonight**, and switches the TV to Disney+ with the remote
+**Scenario: Home Alone over two nights.** Dec 12, 7:30 pm: Kid 1 taps Watch tonight on *Home Alone* (103 min).
+7:31 the TV switches to Disney+ → session opens. 8:21 TV off → 50 min, guess not finished. Dec 13 Kid 1 opens the
+app: "Did you finish *Home Alone*?" with Not yet highlighted, and taps it. Continue Watching shows *Home Alone*,
+"About halfway". Kid 1 taps it, then **Keep watching tonight**, and switches the TV to Disney+ with the remote
 (Disney+ remembers the spot). At 8:50 the TV turns off at
 50 + 55 = 105 min → guess finished. Next open: Yes, then rating.
 
@@ -445,7 +445,7 @@ can be changed later on the detail view, which shows the family rating and each 
 
 ```
 Klaus · ★ 8.6 family
-● N 8   ● L 9   ● M 10   ● A 8   ● P 8
+● N 8   ● L 9   ● K1 10   ● K2 8   ● K3 8
 ```
 
 ## 12. The randomizer
@@ -518,7 +518,7 @@ Advent 4). Settings has **Preview themes** (a session-only override) and **Theme
 
 Each theme is a folder `static/themes/<key>/` with:
 
-1. `background.webp`: Margaret's drawing, scanned or photographed, cleaned up (by hand or with AI image tools,
+1. `background.webp`: Kid 1's drawing, scanned or photographed, cleaned up (by hand or with AI image tools,
    outside this app), cropped to a portrait phone (1080 × 2340 master, served sized), plus a landscape crop
    for desktop.
 2. Motion in CSS/canvas, no library: fireplace flames flicker and sparks rise; toy-store window lights twinkle;
@@ -527,13 +527,13 @@ Each theme is a folder `static/themes/<key>/` with:
 3. A scrim (dark gradient) between the scene and the content so every text and chip pair still meets 4.5:1;
    a test checks the scrim's minimum opacity.
 
-Motion stops under `prefers-reduced-motion`, and pauses on `visibilitychange` when hidden. Until Margaret's
+Motion stops under `prefers-reduced-motion`, and pauses on `visibilitychange` when hidden. Until Kid 1's
 drawings exist, each theme ships with a simple placeholder background in the theme's colors, so the motion
 work doesn't wait on the art.
 
-### 14.4 Margaret's art pipeline
+### 14.4 Kid 1's art pipeline
 
-`docs/themes.md` explains, for Margaret: draw on paper (portrait), photograph in daylight, and either drop the
+`docs/themes.md` explains, for Kid 1: draw on paper (portrait), photograph in daylight, and either drop the
 photo in `art/originals/` and run `ops/prepare-theme <key> <photo>` (crop, resize, convert to WebP with Pillow,
 which is `py3-pillow` on Alpine) or ask Claude to help clean it up first. Originals are kept in the repo.
 
@@ -583,28 +583,28 @@ ones) get `tmdb_type = 'tv'`, and the task reports which.
 
 ## 18. Build order (for the issue queue)
 
-Each step is shippable and becomes one or more small "Prompt:" issues. Issues marked **(M)** are ones Margaret
-can run herself: a visible change she can check on her phone.
+Each step is shippable and becomes one or more small "Prompt:" issues. Issues marked **(K)** (kid-friendly) are ones Kid 1
+can run themselves: a visible change they can check on the phone.
 
 1. Skeleton: Flask app, schema v1 + `migrate()`, auth (§5), CI, installer, OpenRC service, deploy, smoke test.
-2. The list: TMDB add flow, posters, grid, detail view, seed of 41, parent note. **(M: the grid with posters)**
-3. Where to watch: providers, services table and settings, Matinee ownership. **(M: subscriptions screen)**
-4. Search: local filter, exact-title shortcut. **(M)**
-5. Randomizer with filters, three picks and Pick Again, and the button text. **(M)**
-6. People (sync from Matinee) and per-person ratings, family average. **(M: the rating screen)**
+2. The list: TMDB add flow, posters, grid, detail view, seed of 41, parent note. **(K: the grid with posters)**
+3. Where to watch: providers, services table and settings, Matinee ownership. **(K: subscriptions screen)**
+4. Search: local filter, exact-title shortcut. **(K)**
+5. Randomizer with filters, three picks and Pick Again, and the button text. **(K)**
+6. People (sync from Matinee) and per-person ratings, family average. **(K: the rating screen)**
 7. Matinee sync: rating push and conflict notice. Watch push. HA movie log (§8.5).
-8. Viewings and Continue Watching with manual "We finished". **(M)**
+8. Viewings and Continue Watching with manual "We finished". **(K)**
 9. HA webhook and the finish guess; `docs/home-assistant.md`.
-10. AI search with suggestions and Add to our list. **(M: try her own searches)**
-11. Themes: calendar, placeholders, motion, scrim, preview. **(M: motion tuning)**
-12. Margaret's art: pipeline and her four drawings. **(M)**
+10. AI search with suggestions and Add to our list. **(K: try their own searches)**
+11. Themes: calendar, placeholders, motion, scrim, preview. **(K: motion tuning)**
+12. Kid 1's art: pipeline and Kid 1's four drawings. **(K)**
 13. Worth a Month?
 14. (Later, own spec) Play on TV.
 
 Target: steps 1–8 live before Advent 2 (Dec 6, 2026), the rest during December.
 
-Nick runs the deploys with Margaret (decision 22). Each **(M)** issue ends with a short "Try it" note for her:
-what to open on the phone after the deploy, and what she should see.
+Nick runs the deploys with Kid 1 (decision 22). Each **(K)** issue ends with a short "Try it" note for Kid 1:
+what to open on the phone after the deploy, and what they should see.
 
 ## 19. Testing
 
