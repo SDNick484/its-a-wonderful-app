@@ -22,6 +22,12 @@
   <main id="view">
     <section id="grid-view">
       <h2 class="section-title">Our Christmas movies</h2>
+      <form id="search-form" class="search-form" role="search">
+        <label class="sr-only" for="search-input">Search our list by title, actor or series</label>
+        <input type="search" id="search-input" class="field" enterkeyhint="search" autocomplete="off"
+               placeholder="Search title, actor or series">
+      </form>
+      <p class="search-status" id="search-status" aria-live="polite"></p>
       <div class="grid" id="grid" aria-label="Movies on our list"></div>
       <p class="empty" id="grid-empty">Loading…</p>
     </section>

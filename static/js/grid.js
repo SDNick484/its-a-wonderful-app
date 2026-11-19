@@ -31,12 +31,14 @@ function cardHtml(m) {
     + `</a>`;
 }
 
+// Draws the cards the search left showing (state.shownIds), or all of them.
 function renderGrid() {
   const grid = document.getElementById("grid");
   const empty = document.getElementById("grid-empty");
-  grid.innerHTML = state.movies.map(cardHtml).join("");
-  empty.hidden = state.movies.length > 0;
-  empty.textContent = "No movies on our list yet.";
+  const shown = state.shownIds ? state.movies.filter(m => state.shownIds.includes(m.id)) : state.movies;
+  grid.innerHTML = shown.map(cardHtml).join("");
+  empty.hidden = shown.length > 0;
+  empty.textContent = state.movies.length ? "Nothing on our list matches that." : "No movies on our list yet.";
 }
 
 // Fetch the list again and redraw. A failure leaves what is on screen and says why.

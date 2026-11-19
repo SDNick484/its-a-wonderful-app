@@ -4,6 +4,7 @@ import { api, APP_NAME, toast } from "./core.js";
 import { openAddSheet } from "./add.js";
 import { showDetail } from "./detail.js";
 import { loadMovies, watchPosters } from "./grid.js";
+import { wireSearch } from "./search.js";
 import { showSettings } from "./settings.js";
 
 let gridScroll = 0;
@@ -42,6 +43,7 @@ async function start() {
     toast(`Can't reach the app: ${e.message}`);
   }
   watchPosters(document.getElementById("grid"));
+  wireSearch();
   const add = document.getElementById("add-btn");
   add.addEventListener("click", () => openAddSheet(add));
   window.addEventListener("hashchange", route);

@@ -160,6 +160,17 @@ main {
   padding: var(--s7) var(--s4);
 }
 
+.search-form {
+  margin-bottom: var(--s2);
+}
+
+.search-status {
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+  min-height: 1.25em;
+  margin-bottom: var(--s3);
+}
+
 /* Poster grid: three columns on every phone (360 px and up), more on wider screens (spec §4) */
 .grid {
   display: grid;

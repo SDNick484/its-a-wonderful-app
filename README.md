@@ -20,6 +20,9 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   parents, and **Remove from our list** (asks first; its ratings and viewings go with it). Posters are downloaded
   once to `$DATA_DIR/posters/`; a missing poster shows a titled placeholder. Adding needs `TMDB_READ_TOKEN`.
   API: `GET /api/tmdb/search?q=`, `GET`/`POST /api/movies`, `GET`/`PUT`/`DELETE /api/movies/<id>`.
+- **Search.** The box above the grid filters the list as you type, by title, year, actor or collection (no network).
+  Enter shows an exact title on its own (`elf` → *Elf*; "The" and punctuation don't count), otherwise the matches.
+  API: `GET /api/search?q=` → `{"mode", "matches": [{"id", "why"}], "suggestions"}`.
 - **Where to watch.** Every card carries one line (green when it is ready to watch tonight) and the detail view lists
   them all, best first: on a service you subscribe to ("On Netflix"), free ("Free with ads on The Roku Channel"; free
   counts as ready), on a service you are only considering ("On Peacock (you don't have it)"), then "Rent or buy".
