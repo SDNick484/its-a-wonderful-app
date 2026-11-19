@@ -20,6 +20,9 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   parents, and **Remove from our list** (asks first; its ratings and viewings go with it). Posters are downloaded
   once to `$DATA_DIR/posters/`; a missing poster shows a titled placeholder. Adding needs `TMDB_READ_TOKEN`.
   API: `GET /api/tmdb/search?q=`, `GET`/`POST /api/movies`, `GET`/`PUT`/`DELETE /api/movies/<id>`.
+- **The starting list.** `data/seed-movies.json` holds the 41 titles from spec §17, with their parent notes and
+  certifications but no TMDB ids yet. `ops/seed-movies` adds the ones that have an id and skips the rest; see
+  [The starting list](#the-starting-list).
 - Sign-in rules (below), the Home Assistant TV hook's secret check (`POST /hooks/tv`; the hook changes nothing
   yet), the installer, the OpenRC service and the nightly backup.
 
@@ -69,6 +72,22 @@ sh setup-wonderful.sh --uninstall     # removes the app and service; keeps data,
 complete. It keeps 14 days. If `/etc/conf.d/ops` sets `BACKUP_TARGET`, it also copies the day's files there.
 To restore: `rc-service wonderful stop`, `gunzip -c wonderful.db.gz > /var/lib/wonderful/wonderful.db`, untar
 the folders into `/var/lib/wonderful`, `chown -R wonderful:wonderful /var/lib/wonderful`, `rc-service wonderful start`.
+
+## The starting list
+
+The installer runs `ops/seed-movies` once on a fresh install. It adds nothing until `TMDB_READ_TOKEN` is set,
+so after setting the token, run it once as root:
+
+```sh
+/opt/wonderful/ops/seed-movies --resolve      # look up each title (same title and year, movies before TV), write the ids back, add
+/opt/wonderful/ops/seed-movies                # later: add any entry with an id that is not on the list yet (idempotent)
+/opt/wonderful/ops/seed-movies --dry-run      # say what would be added; no TMDB call, no write
+```
+
+It prints `added N, skipped M`. `--resolve` writes the ids back into the seed file it read: on the host that is the
+installed copy under `/opt/wonderful/data/`, so copy the result back to the repo's `data/seed-movies.json` and commit it. The certifications in the file are a hint: TMDB's value is kept,
+and a difference is printed. The script hands the data folder back to the service user, so the service keeps
+working after a root run.
 
 ## Settings
 

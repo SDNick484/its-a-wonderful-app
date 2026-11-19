@@ -69,7 +69,9 @@ gen_key() {  # 43 URL-safe characters (256 bits) for a new secret
   python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
 }
 
+FRESH=0
 if [ ! -f "$CONF" ]; then
+  FRESH=1
   echo "==> Writing $CONF"
   cat > "$CONF" <<EOF
 # It's a Wonderful App configuration. After editing: rc-service wonderful restart
@@ -171,6 +173,12 @@ until up "http://127.0.0.1:$PORT/api/health"; do
   sleep 1
 done
 
+if [ "$FRESH" = 1 ]; then
+  # the starting list (spec §17) is added once, on a fresh install; without TMDB_READ_TOKEN it adds nothing yet
+  echo "==> Adding the starting list"
+  "$APP_DIR/ops/seed-movies" || echo "    (the starting list reported a problem; see the note at the end)"
+fi
+
 echo "==> Taking a first backup"
 /etc/periodic/daily/wonderful-backup || echo "    (backup reported a problem; see /var/log/ops.log)"
 
@@ -179,6 +187,7 @@ echo "It's a Wonderful App is running:  http://$IP:$PORT/"
 echo "Health: $(wget -qO- "http://127.0.0.1:$PORT/api/health" 2>/dev/null || echo 'needs LAN_EDIT=1 to answer here')"
 [ -n "${ADDED:-}" ] && echo "New settings added:${ADDED}"
 grep -q '^TMDB_READ_TOKEN=$' "$CONF" && echo "  - Adding movies is off until you set TMDB_READ_TOKEN in $CONF (then: rc-service wonderful restart)"
+[ "$FRESH" = 1 ] && echo "  - Starting list: after setting TMDB_READ_TOKEN, run $APP_DIR/ops/seed-movies once (as root) to add it"
 grep -q '^CF_AUD=$' "$CONF" && echo "  - Set CF_TEAM_DOMAIN and CF_AUD in $CONF after creating the Access app for <your-hostname>"
 [ -n "${HC_ADDED:-}" ] && echo "  - Added to HEALTH_CHECKS in $OPS_CONF:${HC_ADDED}"
 [ -n "${HC_MANUAL:-}" ] && echo "  - Couldn't edit HEALTH_CHECKS in $OPS_CONF: add these lines:${HC_MANUAL}"

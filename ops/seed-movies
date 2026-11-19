@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Seed the starting list (spec §17): add the titles in data/seed-movies.json that are not on the list yet.
+
+  ops/seed-movies                 add every entry that has a tmdb_id (needs TMDB_READ_TOKEN); prints "added N, skipped M"
+  ops/seed-movies --dry-run       say what would be added: no TMDB call, no write
+  ops/seed-movies --resolve       also look up each entry with no tmdb_id (same title and year, movie before tv), write
+                                  the ids back into the file, then add them
+  ops/seed-movies --file PATH     another seed file (tests use this)
+
+Idempotent: a title already on the list is skipped. The certification in the file is a hint: TMDB's value is kept and a
+difference is printed. Run as root on the host (it reads /etc/conf.d/wonderful); the database and posters it writes
+are handed back to the service user who owns the data folder. The installer runs it once on a fresh install.
+Route-free apart from `app` (the Flask app's module), which it uses for the database and the TMDB client."""
+import argparse, json, os, re, sys
+from pathlib import Path
+
+APP_DIR = Path(__file__).resolve().parent.parent
+if str(APP_DIR) not in sys.path:
+    sys.path.insert(0, str(APP_DIR))
+import app  # noqa: E402  (after the path is set; importing app creates the database in DATA_DIR)
+from werkzeug.exceptions import HTTPException  # noqa: E402
+
+SEED_FILE = APP_DIR / "data" / "seed-movies.json"
+# TV ratings that mean the same as a film rating, for the mismatch note only
+TV_TO_MPA = {"TV-Y": "G", "TV-Y7": "G", "TV-G": "G", "TV-PG": "PG"}
+
+
+def norm_title(title):
+    return re.sub(r"[^a-z0-9]", "", (title or "").casefold())
+
+
+def load(path):
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save(path, entries):
+    tmp = Path(str(path) + ".part")
+    tmp.write_text(json.dumps(entries, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def resolve_entry(entry):
+    """The TMDB hit for an entry with no id: the same title (ignoring case and punctuation) and the same year, movies
+    before TV. None when TMDB has no such title."""
+    hits = [h for h in app.tmdb.search(entry["title"])
+            if norm_title(h["title"]) == norm_title(entry["title"]) and h["year"] == entry["year"]]
+    hits.sort(key=lambda h: h["tmdb_type"] != "movie")   # stable: movies first
+    return hits[0] if hits else None
+
+
+def seed(con, entries, *, dry_run=False, resolve=False, say=print):
+    """Add the entries that are not on the list yet. Returns (added, skipped, failed): `added` counts what would be
+    added under dry_run, `failed` lists the TMDB problems (the entry is left for the next run)."""
+    added = skipped = 0
+    failed = []
+    for e in entries:
+        if e.get("tmdb_id") is None and resolve:
+            try:
+                hit = resolve_entry(e)
+            except app.TmdbError as err:
+                failed.append(f"{e['title']}: {err.message}")
+                say(f"  could not look up {e['title']}: {err.message}")
+                if err.reason == "not_configured":
+                    break   # every later lookup would fail the same way
+                continue
+            if hit is None:
+                say(f"  no TMDB match for {e['title']} ({e['year']}); left unresolved")
+                continue
+            e["tmdb_id"], e["tmdb_type"] = hit["tmdb_id"], hit["tmdb_type"]
+            note = " (TV only: check it is the title you mean)" if hit["tmdb_type"] == "tv" else ""
+            say(f"  resolved {e['title']} ({e['year']}) to {hit['tmdb_type']} {hit['tmdb_id']}{note}")
+        if e.get("tmdb_id") is None:
+            skipped += 1
+            continue
+        if con.execute("SELECT 1 FROM movies WHERE tmdb_type=? AND tmdb_id=?", (e["tmdb_type"], e["tmdb_id"])).fetchone():
+            skipped += 1
+            continue
+        if dry_run:
+            added += 1
+            say(f"  would add {e['title']} ({e['year']})")
+            continue
+        try:
+            movie_id = app.movies.add_movie(con, e["tmdb_id"], e["tmdb_type"], added_by="seed")
+        except app.TmdbError as err:
+            failed.append(f"{e['title']}: {err.message}")
+            say(f"  could not add {e['title']}: {err.message}")
+            if err.reason == "not_configured":
+                break
+            continue
+        except HTTPException:   # someone added it between the check above and the insert
+            skipped += 1
+            continue
+        if e.get("parent_note"):
+            app.movies.update_movie(con, movie_id, {"parent_note": e["parent_note"]})
+        row = app.movies.get_row(con, movie_id)
+        file_cert, tmdb_cert = e.get("certification"), row["certification"]
+        if file_cert and TV_TO_MPA.get(tmdb_cert, tmdb_cert) != TV_TO_MPA.get(file_cert, file_cert):
+            say(f"  certification: {e['title']} is {tmdb_cert} on TMDB, the file says {file_cert}; TMDB's is kept")
+        say(f"  added {e['title']} ({e['year']})")
+        added += 1
+    return added, skipped, failed
+
+
+def hand_back(data_dir):
+    """Run as root, the new database and posters belong to root: give them to the folder's owner (the service user)."""
+    if os.geteuid() != 0:
+        return
+    st = os.stat(data_dir)
+    for root, dirs, files in os.walk(data_dir):
+        for name in dirs + files:
+            os.chown(os.path.join(root, name), st.st_uid, st.st_gid)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="Add the starting list of movies (spec §17).")
+    ap.add_argument("--dry-run", action="store_true", help="say what would be added; no TMDB call, no write")
+    ap.add_argument("--resolve", action="store_true", help="look up entries with no tmdb_id and write the ids back")
+    ap.add_argument("--file", default=str(SEED_FILE), help="the seed file (default: data/seed-movies.json)")
+    args = ap.parse_args(argv)
+    path = Path(args.file)
+    entries = load(path)
+    with app.app.app_context():
+        con = app.get_db()
+        added, skipped, failed = seed(con, entries, dry_run=args.dry_run, resolve=args.resolve)
+        unresolved = sum(1 for e in entries if e.get("tmdb_id") is None)
+    if args.resolve and not args.dry_run:
+        save(path, entries)
+    hand_back(app.DATA_DIR)
+    print(f"{'would add' if args.dry_run else 'added'} {added}, skipped {skipped}")
+    if unresolved:
+        print(f"{unresolved} still have no tmdb_id" + ("" if args.resolve else ": run with --resolve (needs TMDB_READ_TOKEN)"))
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

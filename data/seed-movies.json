@@ -1,0 +1,330 @@
+[
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Rudolph the Red-Nosed Reindeer",
+    "year": 1964,
+    "certification": "G",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "A Charlie Brown Christmas",
+    "year": 1965,
+    "certification": "G",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "How the Grinch Stole Christmas!",
+    "year": 1966,
+    "certification": "G",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Frosty the Snowman",
+    "year": 1969,
+    "certification": "G",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Mickey's Christmas Carol",
+    "year": 1983,
+    "certification": "G",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "The Nightmare Before Christmas",
+    "year": 1993,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "The Polar Express",
+    "year": 2004,
+    "certification": "G",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Shrek the Halls",
+    "year": 2007,
+    "certification": "G",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Prep & Landing",
+    "year": 2009,
+    "certification": "G",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Disney's A Christmas Carol",
+    "year": 2009,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Arthur Christmas",
+    "year": 2011,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "The Star",
+    "year": 2017,
+    "certification": "G",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Olaf's Frozen Adventure",
+    "year": 2017,
+    "certification": "G",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "The Grinch",
+    "year": 2018,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Klaus",
+    "year": 2019,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Diary of a Wimpy Kid Christmas: Cabin Fever",
+    "year": 2023,
+    "certification": "PG",
+    "parent_note": "Greg finds his hidden presents and then gets the same gifts \"from Santa\"."
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "It's a Wonderful Life",
+    "year": 1946,
+    "certification": "NR",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Miracle on 34th Street",
+    "year": 1947,
+    "certification": "NR",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "White Christmas",
+    "year": 1954,
+    "certification": "NR",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "A Christmas Story",
+    "year": 1983,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Home Alone",
+    "year": 1990,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Home Alone 2: Lost in New York",
+    "year": 1992,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "The Muppet Christmas Carol",
+    "year": 1992,
+    "certification": "G",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "The Santa Clause",
+    "year": 1994,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Miracle on 34th Street",
+    "year": 1994,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Jingle All the Way",
+    "year": 1996,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "How the Grinch Stole Christmas",
+    "year": 2000,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "The Santa Clause 2",
+    "year": 2002,
+    "certification": "G",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Elf",
+    "year": 2003,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "The Christmas Chronicles",
+    "year": 2018,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Noelle",
+    "year": 2019,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Jingle Jangle: A Christmas Journey",
+    "year": 2020,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "The Christmas Chronicles: Part Two",
+    "year": 2020,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Scrooge: A Christmas Carol",
+    "year": 2022,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "That Christmas",
+    "year": 2024,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "The Best Christmas Pageant Ever",
+    "year": 2024,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "A Loud House Christmas Movie: Naughty or Nice",
+    "year": 2025,
+    "certification": "NR",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Prancer",
+    "year": 1989,
+    "certification": "G",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "8-Bit Christmas",
+    "year": 2021,
+    "certification": "PG",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Four Christmases",
+    "year": 2008,
+    "certification": "PG-13",
+    "parent_note": null
+  },
+  {
+    "tmdb_id": null,
+    "tmdb_type": null,
+    "title": "Christmas with the Kranks",
+    "year": 2004,
+    "certification": "PG",
+    "parent_note": null
+  }
+]
