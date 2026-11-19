@@ -47,10 +47,10 @@ function nextValue(value, button) {
   return next === value ? null : next;
 }
 
-function rowHtml(p) {
+function rowHtml(p, dim) {
   const buttons = NUMBERS.map(n => `<button type="button" class="rate-btn" data-n="${n}" aria-pressed="false">${n}</button>`).join("")
     + `<button type="button" class="rate-btn" data-half aria-pressed="false" aria-label="and a half">½</button>`;
-  return `<div class="rate-row" data-person="${p.person_id}"><div class="rate-who">${dotHtml(p)}`
+  return `<div class="rate-row${dim ? " rate-row-dim" : ""}" data-person="${p.person_id}"><div class="rate-who">${dotHtml(p)}`
     + `<span class="rate-name">${esc(p.name)}</span><span class="rate-val"></span></div>`
     + `<div class="rate-btns" role="group" aria-label="${esc(p.name)}'s rating">${buttons}</div></div>`;
 }
@@ -98,10 +98,14 @@ async function saveRatings(m, before, now, onSaved, done) {
 }
 
 // Opens the sheet for movie `m` (its `family.by_person` is who can rate). onSaved gets {family_rating, rating_source, family}.
-function openRatingSheet(m, from, onSaved) {
+// `first` (person ids, after a finish: the viewing's people) puts those rows first and dims the rest (spec §11).
+function openRatingSheet(m, from, onSaved, first = null) {
   if (rateSheet) return;
   rateOpener = from || null;
-  const people = m.family?.by_person || [];
+  const all = m.family?.by_person || [];
+  const lead = Array.isArray(first) ? first : null;
+  const people = lead ? [...all.filter(p => lead.includes(p.person_id)), ...all.filter(p => !lead.includes(p.person_id))] : all;
+  const dim = p => Boolean(lead) && !lead.includes(p.person_id);
   const before = Object.fromEntries(people.map(p => [p.person_id, p.rating]));
   const now = { ...before };
   rateSheet = document.createElement("div");
@@ -111,7 +115,7 @@ function openRatingSheet(m, from, onSaved) {
     + `<div class="sheet-head"><h2 id="rate-title" class="sheet-title">Rate ${esc(m.title)}</h2>`
     + `<button type="button" class="icon-btn icon-btn-quiet" data-close aria-label="Close">&times;</button></div>`
     + (people.length
-      ? `<p class="rate-hint">Tap a number. ½ adds a half. Tap it again to clear. Anyone can be left out.</p>${people.map(rowHtml).join("")}`
+      ? `<p class="rate-hint">Tap a number. ½ adds a half. Tap it again to clear. Anyone can be left out.</p>${people.map(p => rowHtml(p, dim(p))).join("")}`
         + `<div class="rate-actions"><button type="button" class="btn" id="rate-done">Done</button></div>`
       : `<p class="rate-hint">Nobody to rate yet. <a href="#/settings" data-close>Add the family in Settings</a>.</p>`)
     + `</div>`;

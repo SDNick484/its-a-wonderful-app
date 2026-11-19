@@ -46,17 +46,24 @@ def round_half_up(x):
     return math.floor(round(x * 2, 9) + 0.5) / 2
 
 
-def today():
-    """Today's date on the host's TZ (spec §16), not UTC. TZ is read on every call, so a test can set it; an
-    unknown zone falls back to the process's local time."""
+def host_tz():
+    """The host's time zone from TZ (spec §16), read on every call so a test can set it; None when TZ is unset or
+    unknown (no tzdata or a bad name), which means the process's local time."""
     tz = os.environ.get("TZ", "").strip().lstrip(":")
     if tz:
         try:
             from zoneinfo import ZoneInfo
-            return dt.datetime.now(ZoneInfo(tz)).date()
+            return ZoneInfo(tz)
         except Exception:  # noqa: BLE001 — no tzdata or a bad name: use local time
             pass
-    return dt.date.today()
+    return None
+
+
+def today():
+    """Today's date on the host's TZ (spec §16), not UTC. TZ is read on every call, so a test can set it; an
+    unknown zone falls back to the process's local time."""
+    tz = host_tz()
+    return dt.datetime.now(tz).date() if tz else dt.date.today()
 
 
 def local_date(stamp):
@@ -65,14 +72,8 @@ def local_date(stamp):
         when = dt.datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
     except (TypeError, ValueError):
         return None
-    tz = os.environ.get("TZ", "").strip().lstrip(":")
-    if tz:
-        try:
-            from zoneinfo import ZoneInfo
-            return when.astimezone(ZoneInfo(tz)).date()
-        except Exception:  # noqa: BLE001 — no tzdata or a bad name: use local time
-            pass
-    return when.astimezone().date()
+    tz = host_tz()
+    return when.astimezone(tz).date() if tz else when.astimezone().date()
 
 
 def now_iso():

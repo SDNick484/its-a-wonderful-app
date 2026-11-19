@@ -67,6 +67,27 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   API: `GET`/`POST /api/people` (`{"name", "kind": "adult" | "kid", "color"}`), `POST /api/people/sync`,
   `PUT /api/movies/<id>/ratings/<person_id>` (`{"rating": 8.5}` or `null` to clear),
   `POST /api/movies/<id>/rating-conflict` (`{"choice": "ours" | "matinee" | "dismiss"}`).
+- **Continue Watching.** **Watch tonight** on a movie's detail view puts it in the **Continue Watching** row above the
+  grid (the row only shows when something is in it), with everyone in the family as its audience. Only one movie is
+  ever on for tonight: picking another moves the first back to the row, or drops it if nobody watched any of it, and
+  so does 4 am local the next morning. Tap a movie in the row for **Keep watching tonight** (when it is paused), **We
+  finished**, its details, or **We gave up on it** (off the row, nothing sent anywhere). A paused movie says how far
+  along it is: **Just started** (under 25 %), **About halfway** (25 to 75 %) or **Almost done**. When the TV stopped
+  a movie (the TV webhook task), the next open asks **Did you finish *Home Alone*?** with **Yes**, **Not yet** and
+  "We gave up on it": the app's guess is highlighted but still needs a tap. After **We finished** or **Yes**: "Want to
+  rate it?" (**Rate** opens the rating sheet with the people who watched first; **Skip**).
+- **Finishing tells Matinee and Home Assistant.** A finished movie Matinee owns is logged there once as a watch, dated
+  the day it finished (the last TV night, or today), with the people who watched and whom Matinee knows (a visitor is
+  left out); the app never asks Matinee to tell Home Assistant. Every finished movie, owned or not, is posted once to
+  `HA_WEBHOOK_URL`, Matinee's Family Room movie log webhook, in Matinee's own shape (`"event":
+  "matinee_watch_logged"`) plus `"source": "wonderful"`, with `formats` and `location` from Matinee for an owned movie
+  (`[]` and `null` otherwise) and `title_id` always `null`. Home Assistant failing is a warning in the log (naming the
+  host only, never the webhook URL). If Matinee is down, slow or refuses the key, the movie is finished all the same,
+  the watch is owed, and the nightly refresh sends it (Home Assistant is not told twice). A finished movie counts for
+  **Not watched this year**.
+  API: `POST /api/movies/<id>/tonight` (`{"people": [ids]}` optional), `GET /api/continue`, `GET /api/prompt`,
+  `POST /api/viewings/<id>/keep`, `…/not-yet`, `…/finish` (`{"finished_on": "2026-12-12"}` optional; a second finish
+  is a 409), `…/abandon`.
 - **Settings → Subscriptions** (the gear in the header). Each streaming service is **Subscribed**, **Considering** or
   **Ignore**, and every card follows at once. Starting statuses: Netflix, Disney+, Hulu, Prime Video, Fandango at
   Home and YouTube TV subscribed; HBO Max, Peacock, Paramount+ and Apple TV considering. The list, each service's
@@ -123,9 +144,9 @@ sh setup-wonderful.sh --uninstall     # removes the app, service and nightly job
 `/etc/periodic/daily/wonderful-refresh` (a two-line wrapper the installer writes around `ops/wonderful-refresh`) runs
 every night as root and appends to `/var/log/ops.log`. It re-reads TMDB's watch providers for every movie whose
 cache is over 7 days old, and asks Matinee about every movie never checked or last checked over a day ago, or with a
-family rating Matinee hasn't received yet (asking again is what sends it, unless Matinee changed meanwhile). If TMDB
-has no token, or Matinee is down or refuses the key, that part stops at the first failure and the rest wait for
-tomorrow. Run it by hand with `/opt/wonderful/ops/wonderful-refresh` (`--dry-run` says what it would ask).
+family rating Matinee hasn't received yet (asking again is what sends it, unless Matinee changed meanwhile). Then it
+sends Matinee the watches of movies finished while it was down. If TMDB has no token, or Matinee is down or refuses
+the key, that part stops at the first failure and the rest wait for tomorrow. Run it by hand with `/opt/wonderful/ops/wonderful-refresh` (`--dry-run` says what it would ask).
 
 ### Backups
 

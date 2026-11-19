@@ -2,6 +2,7 @@
 // render_index() versions every module through an import map, so never hand-edit ?v=.
 import { api, APP_NAME, toast } from "./core.js";
 import { openAddSheet } from "./add.js";
+import { checkPrompt, loadContinue, wireContinue } from "./continue.js";
 import { showDetail } from "./detail.js";
 import { loadMovies, watchPosters } from "./grid.js";
 import { wireSearch } from "./search.js";
@@ -32,7 +33,10 @@ function route() {
     settings.hidden = true;
     grid.hidden = false;
     document.title = APP_NAME;
-    if (wasOther) window.scrollTo(0, gridScroll);
+    if (wasOther) {
+      window.scrollTo(0, gridScroll);
+      loadContinue();   // a Watch tonight or a finish on the detail view shows on the row
+    }
   }
 }
 
@@ -46,11 +50,13 @@ async function start() {
   watchPosters(document.getElementById("grid"));
   wireSearch();
   wireSurprise();
+  wireContinue();
   const add = document.getElementById("add-btn");
   add.addEventListener("click", () => openAddSheet(add));
   window.addEventListener("hashchange", route);
-  await loadMovies();
+  await Promise.all([loadMovies(), loadContinue()]);
   route();
+  checkPrompt();   // "Did you finish …?" the first time the app opens after the TV stopped a movie
 }
 
 window.addEventListener("DOMContentLoaded", start);
