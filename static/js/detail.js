@@ -120,4 +120,4 @@ async function showDetail(id) {
   if (m.providers_stale) refreshProviders(m, true);
 }
 
-export { showDetail };
+export { runtimeText, showDetail };

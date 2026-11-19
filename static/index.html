@@ -22,6 +22,13 @@
   <main id="view">
     <section id="grid-view">
       <h2 class="section-title">Our Christmas movies</h2>
+      <section class="surprise" id="surprise" aria-label="Surprise us">
+        <button type="button" class="btn surprise-btn" id="surprise-btn">🎲 Surprise us, ya filthy animals</button>
+        <div class="chips" id="surprise-chips" role="group" aria-label="Filters for the surprise"></div>
+        <p class="surprise-status" id="surprise-status" aria-live="polite"></p>
+        <div class="grid surprise-picks" id="surprise-picks"></div>
+        <button type="button" class="btn btn-quiet surprise-again" id="surprise-again" hidden>Keep the change (pick again)</button>
+      </section>
       <form id="search-form" class="search-form" role="search">
         <label class="sr-only" for="search-input">Search our list by title, actor or series</label>
         <input type="search" id="search-input" class="field" enterkeyhint="search" autocomplete="off"

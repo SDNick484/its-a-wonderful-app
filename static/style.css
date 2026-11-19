@@ -593,3 +593,55 @@ main {
   color: var(--accent-ink);
   font-weight: 800;
 }
+
+/* The randomizer (spec §12): the big button, the filter chips, three picks and Pick Again */
+.surprise {
+  margin-bottom: var(--s5);
+}
+.surprise-btn {
+  width: 100%;
+  min-height: 52px;
+  font-size: var(--fs-md);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s3);
+}
+.chip {
+  min-height: var(--tap);
+  padding: 0 var(--s4);
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-chip);
+  background: var(--raised);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.chip[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
+}
+.surprise-status {
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+  min-height: 1.25em;
+  margin: var(--s3) 0;
+}
+.surprise-status:empty {
+  margin: 0;
+  min-height: 0;
+}
+.surprise-picks {
+  margin-bottom: var(--s3);
+}
+.surprise-again {
+  width: 100%;
+}
+.surprise-again[hidden] {
+  display: none;
+}
