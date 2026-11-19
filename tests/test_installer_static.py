@@ -125,6 +125,19 @@ def test_backup_job_and_uninstall():
     assert "DATA_DIR" not in block.split("echo")[0], "uninstall must keep the data"
 
 
+def test_nightly_refresh_job_and_uninstall():
+    m = re.search(r"cat > /etc/periodic/daily/wonderful-refresh <<'EOF'\n(.*?)\nEOF\nchmod 755 /etc/periodic/daily/wonderful-refresh\n",
+                  HEAD, re.S)
+    assert m, "the wonderful-refresh wrapper is not written and made executable"
+    wrapper = m.group(1)
+    assert wrapper.startswith("#!/bin/sh") and "/opt/wonderful/ops/wonderful-refresh" in wrapper
+    assert ">> /var/log/ops.log" in wrapper
+    subprocess.run(["sh", "-n"], input=wrapper, text=True, check=True)
+    block = HEAD[HEAD.index('"--uninstall"'):HEAD.index("exit 0")]
+    assert "/etc/periodic/daily/wonderful-refresh" in block
+    assert (ROOT / "ops" / "wonderful-refresh").stat().st_mode & 0o111      # the app ships it executable
+
+
 def test_health_check_uses_the_health_route():
     assert 'add_health_check "Wonderful|http://127.0.0.1:$PORT/api/health|wonderful" wonderful' in HEAD
 

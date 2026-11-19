@@ -1,0 +1,23 @@
+{
+  "copies": [
+    {
+      "added_by": null,
+      "code_status": "none",
+      "created_at": "2026-11-19 07:26:02",
+      "edition": null,
+      "format": "Blu-ray",
+      "id": 1,
+      "kind": "physical",
+      "label": "Blu-ray",
+      "location_id": 3,
+      "location_path": "Family Room › Media Cabinet › Shelf 2",
+      "price_cents": null,
+      "purchased_on": null,
+      "service": null,
+      "title_id": 1,
+      "updated_at": "2026-11-19 07:26:02"
+    }
+  ],
+  "summary": "Blu-ray",
+  "title_id": 1
+}

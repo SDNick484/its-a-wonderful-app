@@ -59,6 +59,22 @@ def today():
     return dt.date.today()
 
 
+def local_date(stamp):
+    """The host-local date (TZ, like today()) of a UTC timestamp written by now_iso(), or None when it can't be read."""
+    try:
+        when = dt.datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+    except (TypeError, ValueError):
+        return None
+    tz = os.environ.get("TZ", "").strip().lstrip(":")
+    if tz:
+        try:
+            from zoneinfo import ZoneInfo
+            return when.astimezone(ZoneInfo(tz)).date()
+        except Exception:  # noqa: BLE001 — no tzdata or a bad name: use local time
+            pass
+    return when.astimezone().date()
+
+
 def now_iso():
     """UTC timestamp for *_at columns: 2026-12-12T03:31:04Z."""
     return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

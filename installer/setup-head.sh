@@ -20,9 +20,9 @@ command -v apk >/dev/null || { echo "This installer is for Alpine (apk)."; exit 
 if [ "${1:-}" = "--uninstall" ]; then
   rc-service wonderful stop 2>/dev/null || true
   rc-update del wonderful default 2>/dev/null || true
-  rm -f /etc/init.d/wonderful /etc/periodic/daily/wonderful-backup
+  rm -f /etc/init.d/wonderful /etc/periodic/daily/wonderful-backup /etc/periodic/daily/wonderful-refresh
   rm -rf "$APP_DIR"
-  echo "Removed app, service and backup job. Data kept in $DATA_DIR, config in $CONF, backups in /var/backups/wonderful."
+  echo "Removed app, service, backup and refresh jobs. Data kept in $DATA_DIR, config in $CONF, backups in /var/backups/wonderful."
   exit 0
 fi
 
@@ -148,9 +148,17 @@ EOF
 chmod +x /etc/init.d/wonderful
 
 # ---------------------------------------------------------------- backups
-echo "==> Installing the nightly backup"
+echo "==> Installing the nightly backup and refresh jobs"
 mkdir -p /etc/periodic/daily
 install -m 755 "$APP_DIR/ops/wonderful-backup" /etc/periodic/daily/wonderful-backup
+# Nightly refresh of watch providers (TMDB) and ownership (Matinee): a thin wrapper, as Matinee's matinee-refresh is.
+# It logs to /var/log/ops.log and never fails the cron run: a Matinee that is down is retried tomorrow.
+cat > /etc/periodic/daily/wonderful-refresh <<'EOF'
+#!/bin/sh
+# Nightly refresh for It's a Wonderful App (written by setup-wonderful.sh). Log: /var/log/ops.log
+/opt/wonderful/ops/wonderful-refresh >> /var/log/ops.log 2>&1 || true
+EOF
+chmod 755 /etc/periodic/daily/wonderful-refresh
 rc-update add crond default >/dev/null 2>&1 || true
 rc-service crond start >/dev/null 2>&1 || true
 

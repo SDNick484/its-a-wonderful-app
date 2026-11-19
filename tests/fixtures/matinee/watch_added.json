@@ -1,0 +1,16 @@
+{
+  "ok": true,
+  "removed_from": [],
+  "watch": {
+    "attendance": "recorded",
+    "attendees": [
+      1,
+      2
+    ],
+    "date_bucket": null,
+    "id": 3,
+    "notes": null,
+    "title_id": 1,
+    "watched_date": "2025-12-24"
+  }
+}

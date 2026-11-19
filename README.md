@@ -25,8 +25,14 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   counts as ready), on a service you are only considering ("On Peacock (you don't have it)"), then "Rent or buy".
   The data is TMDB's US watch providers (JustWatch), saved when a movie is added and refreshed when older than 7
   days or with **Check again** on the detail view. A provider the app has never heard of shows under its own name.
-  A title with no US providers reads "Rent or buy". The seed script also fetches them. Owned discs from Matinee come
-  later.
+  A title with no US providers reads "Rent or buy". The seed script also fetches them.
+- **Owned, and where it sits.** The app asks [Matinee](https://github.com/SDNick484/matinee) (`MATINEE_URL` and
+  `MATINEE_API_KEY`) whether each movie is in the collection. An owned movie leads its where-to-watch lines with the
+  copies and the shelf: "Blu-ray · Family Room › Media Cabinet › Shelf 2" (a title Matinee lacks, or holds with no
+  copy, is not owned). Matinee is asked when a movie is added, when you open its detail view and the last answer is
+  over a day old, and every night. If Matinee is down, slow or refuses the key, nothing else breaks: the last known
+  answer stays and reads "(as of Dec 3)", and the nightly refresh tries again. TV-only specials are never asked
+  (Matinee knows movies only). With no `MATINEE_API_KEY` the whole sync is off.
 - **Settings → Subscriptions** (the gear in the header). Each streaming service is **Subscribed**, **Considering** or
   **Ignore**, and every card follows at once. Starting statuses: Netflix, Disney+, Hulu, Prime Video, Fandango at
   Home and YouTube TV subscribed; HBO Max, Peacock, Paramount+ and Apple TV considering. The list, each service's
@@ -70,13 +76,21 @@ The installer adds `python3 py3-flask py3-gunicorn py3-pillow py3-jwt py3-crypto
 creates the `wonderful` user, unpacks the app to `/opt/wonderful`, keeps data in `/var/lib/wonderful`
 (`wonderful.db`, `posters/`, `art/`), writes any missing setting to `/etc/conf.d/wonderful` without touching the
 ones already there, generates `HA_HOOK_SECRET`, adds the OpenRC service `wonderful` (gunicorn on port 8772 by
-default; `WONDERFUL_PORT=<port> sh setup-wonderful.sh` for another) and installs the nightly backup.
+default; `WONDERFUL_PORT=<port> sh setup-wonderful.sh` for another) and installs the nightly backup and refresh.
 
 ```sh
 rc-service wonderful restart          # after editing /etc/conf.d/wonderful (vim /etc/conf.d/wonderful)
 tail -f /var/log/wonderful.log
-sh setup-wonderful.sh --uninstall     # removes the app and service; keeps data, config and backups
+sh setup-wonderful.sh --uninstall     # removes the app, service and nightly jobs; keeps data, config and backups
 ```
+
+### Nightly refresh
+
+`/etc/periodic/daily/wonderful-refresh` (a two-line wrapper the installer writes around `ops/wonderful-refresh`) runs
+every night as root and appends to `/var/log/ops.log`. It re-reads TMDB's watch providers for every movie whose
+cache is over 7 days old, and asks Matinee about every movie never checked or last checked over a day ago. If TMDB
+has no token, or Matinee is down or refuses the key, that part stops at the first failure and the rest wait for
+tomorrow. Run it by hand with `/opt/wonderful/ops/wonderful-refresh` (`--dry-run` says what it would ask).
 
 ### Backups
 

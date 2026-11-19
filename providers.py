@@ -11,7 +11,7 @@ from flask import abort
 
 import movies
 import tmdb
-from common import clean, make_err, now_iso
+from common import clean, local_date, make_err, now_iso
 from settings import SERVICES_FILE
 
 TIERS = tmdb.PROVIDER_TIERS        # flatrate, free, ads, rent, buy
@@ -154,7 +154,8 @@ def cached(con, movie_id):
 def where_to_watch(con, movie_id):
     """[{kind, label}] from the cache, best first (spec §7.2); no TMDB call. The card shows the first line, the detail
     view all of them.
-      owned        from Matinee (the matinee task adds these ahead of everything else)
+      owned        from Matinee's last answer (matinee_sync): "Blu-ray · Family Room › Media Cabinet › Shelf 2". When
+                   that answer is over a day old (Matinee has not answered since) it ends "(as of Dec 3)"
       subscribed   flatrate on a subscribed service: "On Netflix"
       free         TMDB free or ads, any service not set to ignore: "Free with ads on The Roku Channel"
       considering  flatrate on a service we don't have: "On Peacock (you don't have it)". A provider the services list
@@ -181,12 +182,29 @@ def where_to_watch(con, movie_id):
             if status != "ignore":
                 free.append({"kind": "free", "label": f"{words} on {shown}"})
     out = []
+    owned = _owned_line(con, movie_id)
+    if owned:
+        out.append(owned)
     for entry in subscribed + free + considering:
         if entry not in out:
             out.append(entry)
     if data["rent"] or data["buy"] or not out:
         out.append({"kind": "rent_buy", "label": "Rent or buy"})
     return out
+
+
+def _owned_line(con, movie_id):
+    """The owned entry from matinee_sync, or None when Matinee has never said the movie is owned (or says it isn't)."""
+    s = con.execute("SELECT matinee_title_id, owned_summary, location_path, checked_at FROM matinee_sync WHERE movie_id=?",
+                    (movie_id,)).fetchone()
+    if s is None or s["matinee_title_id"] is None or not clean(s["owned_summary"]):
+        return None
+    label = " · ".join(x for x in (clean(s["owned_summary"]), clean(s["location_path"])) if x)
+    if movies.ownership_is_stale(s["checked_at"]):
+        day = local_date(s["checked_at"])
+        if day:
+            label += f" (as of {day:%b} {day.day})"
+    return {"kind": "owned", "label": label}
 
 
 def ready_tonight(con, movie_id):

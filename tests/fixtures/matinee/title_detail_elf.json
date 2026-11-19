@@ -1,0 +1,98 @@
+{
+  "added_on": "2026-11-19",
+  "backdrop_file": null,
+  "backdrop_path": "/backdrop10719.jpg",
+  "backdrop_url": null,
+  "certification": "PG",
+  "certification_override": null,
+  "certification_tmdb": "PG",
+  "collection_name": null,
+  "collection_tmdb_id": null,
+  "copies": [
+    {
+      "added_by": null,
+      "code_status": "none",
+      "created_at": "2026-11-19 07:26:02",
+      "edition": null,
+      "format": "Blu-ray",
+      "id": 1,
+      "kind": "physical",
+      "label": "Blu-ray",
+      "location_id": 3,
+      "location_path": "Family Room › Media Cabinet › Shelf 2",
+      "price_cents": null,
+      "purchased_on": null,
+      "service": null,
+      "title_id": 1,
+      "updated_at": "2026-11-19 07:26:02"
+    }
+  ],
+  "created_at": "2026-11-19 07:26:02",
+  "custom_poster": false,
+  "custom_poster_file": null,
+  "fetched_at": "2026-11-19T07:26:02Z",
+  "genres": [
+    "Comedy",
+    "Family",
+    "Fantasy"
+  ],
+  "id": 1,
+  "imdb_id": "tt0319343",
+  "last_watched": "2025-12-20",
+  "lists": [],
+  "omdb": null,
+  "overview": "Elf (2003).",
+  "owned": true,
+  "poster_file": null,
+  "poster_large_url": null,
+  "poster_path": "/poster10719.jpg",
+  "poster_url": null,
+  "release_date": "2003-10-09",
+  "runtime": 97,
+  "seen_by": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "title": "Elf",
+  "tmdb_id": 10719,
+  "tmdb_url": "https://www.themoviedb.org/movie/10719",
+  "tmdb_vote": 6.7,
+  "tmdb_votes": 10000,
+  "updated_at": "2026-11-19 07:26:02",
+  "user_rating": 9.0,
+  "want": null,
+  "watch_count": 2,
+  "watches": [
+    {
+      "attendance": "recorded",
+      "attendees": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "created_at": "2026-11-19 07:26:02",
+      "date_bucket": null,
+      "id": 2,
+      "notes": null,
+      "watched_date": "2025-12-20"
+    },
+    {
+      "attendance": "recorded",
+      "attendees": [
+        1,
+        2,
+        3
+      ],
+      "created_at": "2026-11-19 07:26:02",
+      "date_bucket": null,
+      "id": 1,
+      "notes": null,
+      "watched_date": "2024-12-14"
+    }
+  ],
+  "wishes": [],
+  "year": 2003
+}
