@@ -218,3 +218,59 @@ def test_the_first_detail_view_copies_the_family_from_matinee(browser, server, t
     assert page.eval_on_selector_all(".rate-name", "els => els.map(e => e.textContent)") == ["Avery", "Blake", "Casey", "Drew"]
     assert [c for c in matinee_fixtures.calls if c[1] == "/admin/api/people"] == [("GET", "/admin/api/people", None)]
     assert errors == []
+
+
+def _conflict(matinee_rating=7.0, conflict=True):
+    """Elf rated 8.5, 9, 10, 9, 8 here (8.9; no Matinee key, so nothing was sent), and Matinee title 1 saying 7.0: an
+    open notice, or with conflict=False a rating still owed to Matinee."""
+    with app.app.app_context():
+        con = app.get_db()
+        for person, value in zip(range(1, 6), (8.5, 9, 10, 9, 8)):
+            app.ratings.set(con, 1, person, value)
+        con.execute("UPDATE matinee_sync SET matinee_title_id=1, owned_summary='Blu-ray', matinee_rating=?,"
+                    " conflict_rating=? WHERE movie_id=1", (matinee_rating, matinee_rating if conflict else None))
+        con.commit()
+
+
+@pytest.mark.parametrize("viewport", [PHONE, SMALL_PHONE], ids=["412px", "360px"])
+def test_the_conflict_notice_offers_three_answers(browser, seeded, viewport):   # noqa: F811
+    _conflict()
+    page, errors = _open(browser, seeded, viewport)
+    page.click(".movie-card >> text=Elf")
+    page.wait_for_selector("#rating-conflict")
+    assert page.inner_text(".sync-text") == "Matinee says 7, we say 8.9"
+    assert page.eval_on_selector_all("#rating-conflict button", "els => els.map(e => e.textContent)") == [
+        "Use ours", "Use Matinee's", "Dismiss"]
+    for choice in ("ours", "matinee", "dismiss"):
+        assert _height(page, f"#rating-conflict [data-choice={choice}]") >= 44, choice
+    for sel in (".sync-text", "#rating-conflict .btn", "#rating-conflict .btn-quiet"):
+        assert _contrast(page, sel) >= 4.5, sel
+    assert _side_scroll(page) <= 0
+    page.click("text=Use Matinee's")
+    _toast(page, "Using Matinee's rating")
+    assert page.inner_text("#detail-rating-head") == "★ 7.0 family rating from Matinee"
+    assert page.locator("#rating-conflict").count() == 0
+    page.click("#back-link")
+    assert page.locator(".movie-card", has_text="Elf").locator(".star").inner_text() == "★ 7.0"
+    assert errors == []
+
+
+def test_dismiss_closes_the_notice_and_keeps_ours(browser, seeded):   # noqa: F811
+    _conflict()
+    page, errors = _open(browser, seeded, PHONE)
+    page.click(".movie-card >> text=Elf")
+    page.click("text=Dismiss")
+    _toast(page, "Left as it is")
+    assert page.locator("#rating-conflict").count() == 0 and page.inner_text("#detail-rating-head") == "★ 8.9 family"
+    page.reload()
+    page.wait_for_selector("#detail-rating-head")
+    assert page.locator("#rating-conflict").count() == 0 and errors == []
+
+
+def test_a_rating_matinee_has_not_heard_says_so(browser, seeded):   # noqa: F811
+    _conflict(conflict=False)
+    page, errors = _open(browser, seeded, PHONE)
+    page.click(".movie-card >> text=Elf")
+    page.wait_for_selector("#rating-pending")
+    assert page.inner_text("#rating-pending") == "Not sent to Matinee yet. It tries again tonight."
+    assert _contrast(page, "#rating-pending") >= 4.5 and errors == []

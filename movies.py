@@ -7,6 +7,7 @@ from flask import abort, current_app, has_app_context
 
 import images
 import matinee
+import sync
 import tmdb
 from common import clean, make_err, now_iso
 
@@ -150,26 +151,32 @@ def _newest_watch(watches):
     return max(found, default=None)
 
 
+def _user_rating(detail):
+    """Matinee's household rating from a title record (`user_rating`), or None when it has none."""
+    value = detail.get("user_rating") if isinstance(detail, dict) else None
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
 def check_ownership(con, movie_id):
     """Ask Matinee whether the movie is owned and where, and store the answer in matinee_sync (spec §8.1).
     A title Matinee doesn't have, or has with no copy, is not owned: matinee_title_id NULL and no summary or shelf.
     A TV-only entry (tmdb_type 'tv') is never asked: Matinee keys titles by movie id, so a TV id could match an
-    unrelated movie (spec §8.2). Only the five Matinee-read columns and checked_at are written; the rating columns
-    that belong to the ratings task are left alone.
+    unrelated movie (spec §8.2). Only the five Matinee-read columns and checked_at are written here; then
+    sync.reconcile compares Matinee's rating with the family's (the bought-later rule, a conflict, a push still owed).
     Raises matinee.Unavailable or matinee.Rejected when Matinee gives no answer: nothing is changed then, so the last
     known answer and its checked_at stay."""
     row = get_row(con, movie_id)
     if row["tmdb_type"] != "movie":
         return
     api = matinee.client()
+    before = con.execute("SELECT * FROM matinee_sync WHERE movie_id=?", (movie_id,)).fetchone()
     found = api.owned(row["tmdb_id"])
     title_id = found["title_id"] if found["summary"] else None
     summary = location = rating = last_watch = None
     if title_id is not None:
         summary, location = found["summary"], found["location_path"]
         detail = api.title(title_id)
-        value = detail.get("user_rating")
-        rating = float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+        rating = _user_rating(detail)
         last_watch = _newest_watch(detail.get("watches"))
     con.execute(
         "INSERT INTO matinee_sync (movie_id, matinee_title_id, owned_summary, location_path, matinee_rating,"
@@ -180,6 +187,7 @@ def check_ownership(con, movie_id):
         " checked_at=excluded.checked_at",
         (movie_id, title_id, summary, location, rating, last_watch, now_iso()))
     con.commit()
+    sync.reconcile(con, movie_id, before)
 
 
 def refresh_ownership(con, movie_id):
@@ -215,11 +223,13 @@ def refresh_ownership_if_stale(con, movie_id):
 
 
 def ownership_due(con):
-    """The ids of the movies the nightly job should ask Matinee about: movies never checked, or last checked over a
-    day ago. TV-only entries are never asked."""
+    """The ids of the movies the nightly job should ask Matinee about: movies never checked, last checked over a
+    day ago, or with a family rating still owed to Matinee (asking again is what sends it, sync.reconcile). TV-only
+    entries are never asked."""
+    owed = set(sync.pending_ids(con))
     return [r["id"] for r in con.execute(
         "SELECT m.id, s.checked_at FROM movies m LEFT JOIN matinee_sync s ON s.movie_id = m.id"
-        " WHERE m.tmdb_type = 'movie' ORDER BY m.id") if ownership_is_stale(r["checked_at"])]
+        " WHERE m.tmdb_type = 'movie' ORDER BY m.id") if r["id"] in owed or ownership_is_stale(r["checked_at"])]
 
 
 def list_rows(con):

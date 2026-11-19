@@ -54,10 +54,19 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   half steps (7.3 or 11 is refused). The family rating is the mean to one decimal (8, 9, 10, 8, 8 is **8.6**); it shows
   as **★ 8.6** on the poster and as a row of coloured dots with each person's rating on the detail view. Clear the last
   rating and the family rating goes away. While Matinee holds the rating of a movie it owns and nobody has rated here,
-  the poster shows Matinee's rating ("family rating from Matinee"). Rating never needs Matinee. Sending the rating to
-  Matinee arrives with the rating-sync task.
+  the poster shows Matinee's rating ("family rating from Matinee"). Rating never needs Matinee.
+- **The family rating in Matinee.** The first rating here takes a movie's rating over from Matinee. From then on, for
+  a movie Matinee owns, every change sends Matinee the family mean rounded to the nearest half, ties up (8.9 → **9.0**,
+  8.6 → **8.5**, 8.75 → **9.0**); Matinee never gets an empty rating, so clearing every rating sends nothing. A movie
+  Matinee doesn't own keeps its ratings here; if it is bought later, the next ownership check sends the rating when
+  Matinee has none. The app never writes over a rating someone changed in Matinee: before sending it reads Matinee,
+  and each ownership check compares, and when they differ the detail view shows **Matinee says 9, we say 8.6** with
+  **Use ours** (send ours), **Use Matinee's** (Matinee's rating shows and leads again until someone rates here) and
+  **Dismiss** (leave both; the next change here is sent). If Matinee is down, slow or refuses the key, the rating still
+  saves, the detail view says **Not sent to Matinee yet**, and the nightly refresh sends it.
   API: `GET`/`POST /api/people` (`{"name", "kind": "adult" | "kid", "color"}`), `POST /api/people/sync`,
-  `PUT /api/movies/<id>/ratings/<person_id>` (`{"rating": 8.5}` or `null` to clear).
+  `PUT /api/movies/<id>/ratings/<person_id>` (`{"rating": 8.5}` or `null` to clear),
+  `POST /api/movies/<id>/rating-conflict` (`{"choice": "ours" | "matinee" | "dismiss"}`).
 - **Settings → Subscriptions** (the gear in the header). Each streaming service is **Subscribed**, **Considering** or
   **Ignore**, and every card follows at once. Starting statuses: Netflix, Disney+, Hulu, Prime Video, Fandango at
   Home and YouTube TV subscribed; HBO Max, Peacock, Paramount+ and Apple TV considering. The list, each service's
@@ -113,7 +122,8 @@ sh setup-wonderful.sh --uninstall     # removes the app, service and nightly job
 
 `/etc/periodic/daily/wonderful-refresh` (a two-line wrapper the installer writes around `ops/wonderful-refresh`) runs
 every night as root and appends to `/var/log/ops.log`. It re-reads TMDB's watch providers for every movie whose
-cache is over 7 days old, and asks Matinee about every movie never checked or last checked over a day ago. If TMDB
+cache is over 7 days old, and asks Matinee about every movie never checked or last checked over a day ago, or with a
+family rating Matinee hasn't received yet (asking again is what sends it, unless Matinee changed meanwhile). If TMDB
 has no token, or Matinee is down or refuses the key, that part stops at the first failure and the rest wait for
 tomorrow. Run it by hand with `/opt/wonderful/ops/wonderful-refresh` (`--dry-run` says what it would ask).
 
