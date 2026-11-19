@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+"""Nightly refresh (spec §7.2, §8.1): ask TMDB again where each movie streams when its cache is over 7 days old, and ask
+Matinee again whether each movie is owned (and where it sits) when the last good answer is over a day old or missing.
+
+  ops/wonderful-refresh           run both; prints one line per problem and a summary (the installer's cron wrapper
+                                  appends it to /var/log/ops.log); exit 1 if anything could not be refreshed
+  ops/wonderful-refresh --dry-run say what would be asked: no TMDB or Matinee call, no write
+
+A failure never stops the app, and nothing is lost: the old answer stays and tomorrow's run tries again. When TMDB has
+no token, or Matinee has no key or does not answer (or refuses the key), that part stops at once instead of timing out
+once per movie. Run as root on the host (it reads /etc/conf.d/wonderful); the database it writes is handed back to the
+service user who owns the data folder. Route-free apart from `app` (the Flask app's module), which it uses for the
+database and the clients."""
+import argparse, datetime as dt, os, sys
+from pathlib import Path
+
+APP_DIR = Path(__file__).resolve().parent.parent
+if str(APP_DIR) not in sys.path:
+    sys.path.insert(0, str(APP_DIR))
+import app  # noqa: E402  (after the path is set; importing app opens the database in DATA_DIR)
+
+
+def say(msg):
+    print(f"{dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} wonderful-refresh: {msg}")
+
+
+def refresh_providers(con, *, dry_run=False, say=say):
+    """TMDB watch providers for every movie whose cache is stale. Returns (refreshed, failed); stops at once when TMDB
+    has no token (every later call would fail the same way)."""
+    refreshed = failed = 0
+    for row in app.movies.list_rows(con):
+        if not app.providers.cached(con, row["id"])[3]:
+            continue
+        if dry_run:
+            say(f"would refresh providers for {row['title']}")
+            refreshed += 1
+            continue
+        try:
+            app.providers.refresh(con, row["id"])
+            refreshed += 1
+        except app.TmdbError as err:
+            failed += 1
+            say(f"providers for {row['title']}: {err.message}")
+            if err.reason == "not_configured":
+                break
+    return refreshed, failed
+
+
+def refresh_ownership(con, *, dry_run=False, say=say):
+    """Matinee ownership for every movie never checked or last checked over a day ago (TV entries never). Returns
+    (checked, failed, skipped): the first failure stops the run (Matinee is down or refuses our key, so the rest would
+    only wait out the timeout) and the movies after it are `skipped`, left for tomorrow."""
+    due = app.movies.ownership_due(con)
+    if not app.matinee.configured():
+        say("Matinee sync is off (no MATINEE_API_KEY): ownership not refreshed")
+        return 0, 0, len(due)
+    checked = 0
+    for n, movie_id in enumerate(due):
+        title = app.movies.get_row(con, movie_id)["title"]
+        if dry_run:
+            say(f"would check ownership of {title}")
+            checked += 1
+            continue
+        try:
+            app.movies.check_ownership(con, movie_id)
+            checked += 1
+        except (app.matinee.Unavailable, app.matinee.Rejected) as err:
+            say(f"ownership of {title}: {err.message} Stopping; {len(due) - n - 1} more left for tomorrow.")
+            return checked, 1, len(due) - n - 1
+    return checked, 0, 0
+
+
+def hand_back(data_dir):
+    """Run as root, a database file created here would belong to root: give the data folder's files to its owner."""
+    if os.geteuid() != 0:
+        return
+    st = os.stat(data_dir)
+    for root, dirs, files in os.walk(data_dir):
+        for name in dirs + files:
+            os.chown(os.path.join(root, name), st.st_uid, st.st_gid)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="Nightly refresh of watch providers (TMDB) and ownership (Matinee).")
+    ap.add_argument("--dry-run", action="store_true", help="say what would be asked; no TMDB or Matinee call, no write")
+    args = ap.parse_args(argv)
+    with app.app.app_context():
+        con = app.get_db()
+        p_done, p_failed = refresh_providers(con, dry_run=args.dry_run)
+        o_done, o_failed, o_skipped = refresh_ownership(con, dry_run=args.dry_run)
+    hand_back(app.DATA_DIR)
+    say(f"{'would refresh' if args.dry_run else 'refreshed'} providers for {p_done} ({p_failed} failed); "
+        f"ownership checked for {o_done} ({o_failed} failed, {o_skipped} left for tomorrow)")
+    return 1 if p_failed or o_failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

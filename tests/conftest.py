@@ -44,6 +44,7 @@ def _isolate(tmp_path, monkeypatch):
     monkeypatch.setattr(core, "HA_WEBHOOK_URL", "")
     monkeypatch.setattr(core, "TMDB_READ_TOKEN", "")
     monkeypatch.setattr(core, "MATINEE_API_KEY", "")
+    monkeypatch.setattr(core, "_matinee_failed_at", None, raising=False)   # movies.py's page-view backoff, per test
     monkeypatch.setattr(core, "ANTHROPIC_API_KEY", "")
     monkeypatch.setattr(urllib.request, "urlopen", _no_network)
     core.init_db()
@@ -142,3 +143,94 @@ def tmdb_down(client, monkeypatch):
 
     monkeypatch.setattr(core, "TMDB_READ_TOKEN", TMDB_TOKEN)
     monkeypatch.setattr(urllib.request, "urlopen", boom)
+
+
+# ------------------------------------------------------------------------------------------------ Matinee, recorded
+MATINEE_FIXTURES = FIXTURES / "matinee"
+MATINEE_KEY = "matinee-test-key"
+MATINEE_HOST = "movies.example.com"
+
+
+class FakeMatinee:
+    """Stands in for urllib.request.urlopen for Matinee's /admin/api, answering from tests/fixtures/matinee/ (shapes
+    recorded from Matinee's own responses), and records each request as (method, path, body). It checks the bearer key
+    (a wrong one gets Matinee's real 401). `owned_files` maps a TMDB id to the owned-answer file (any other id is "not
+    owned"); title 1 is the recorded Elf. Requests to any other host go to `other`, the urlopen that was in force
+    before, so this composes with tmdb_fixtures."""
+
+    def __init__(self, other):
+        self.other = other
+        self.calls = []                                # (method, path, body or None), in order
+        self.headers = []                              # the Authorization header of each request
+        self.owned_files = {10719: "owned_elf.json"}
+
+    def _json(self, name):
+        return io.BytesIO((MATINEE_FIXTURES / name).read_bytes())
+
+    def _http_error(self, req, code, name):
+        raise urllib.error.HTTPError(req.full_url, code, "Error", {}, self._json(name) if name else None)
+
+    def __call__(self, req, timeout=None):
+        import json
+        url = urllib.parse.urlparse(req.full_url)
+        if url.netloc != MATINEE_HOST:
+            return self.other(req, timeout=timeout)
+        body = json.loads(req.data) if req.data else None
+        self.calls.append((req.get_method(), url.path, body))
+        self.headers.append(req.get_header("Authorization"))
+        if req.get_header("Authorization") != f"Bearer {MATINEE_KEY}":
+            self._http_error(req, 401, "unauthorized.json")
+        m = req.get_method()
+        if m == "GET" and (g := re.fullmatch(r"/admin/api/tmdb/(\d+)/owned", url.path)):
+            return self._json(self.owned_files.get(int(g.group(1)), "not_owned.json"))
+        if m == "GET" and url.path == "/admin/api/titles/1":
+            return self._json("title_detail_elf.json")
+        if m == "GET" and url.path == "/admin/api/people":
+            return self._json("people.json")
+        if m == "PUT" and url.path == "/admin/api/titles/1/rating":
+            if (body["rating"] * 2) % 1:
+                self._http_error(req, 400, "rating_400.json")
+            return self._json("rating_set.json")
+        if m == "POST" and url.path == "/admin/api/titles/1/watches":
+            return self._json("watch_added.json")
+        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
+
+
+@pytest.fixture
+def matinee_fixtures(client, monkeypatch):
+    """Matinee answers from the recorded fixtures (no live network), with MATINEE_URL and the key set. Returns the
+    FakeMatinee with its .calls list. Use it with `client`; list tmdb_fixtures before it in a test that needs both."""
+    import urllib.request
+    import app as core
+
+    monkeypatch.setattr(core, "MATINEE_URL", f"http://{MATINEE_HOST}")
+    monkeypatch.setattr(core, "MATINEE_API_KEY", MATINEE_KEY)
+    fake = FakeMatinee(urllib.request.urlopen)
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    return fake
+
+
+@pytest.fixture
+def matinee_down(client, monkeypatch):
+    """Matinee is configured but every call fails; set `.error` to an exception to raise (default: a connection
+    refused), or to an int for that HTTP status. `.calls` counts the attempts."""
+    import urllib.request
+    import app as core
+
+    class Down:
+        def __init__(self, other):
+            self.other, self.error, self.calls = other, urllib.error.URLError(ConnectionRefusedError()), 0
+
+        def __call__(self, req, timeout=None):
+            if urllib.parse.urlparse(req.full_url).netloc != MATINEE_HOST:
+                return self.other(req, timeout=timeout)    # TMDB still answers (list tmdb_fixtures first)
+            self.calls += 1
+            if isinstance(self.error, int):
+                raise urllib.error.HTTPError(req.full_url, self.error, "Error", {}, None)
+            raise self.error
+
+    fake = Down(urllib.request.urlopen)
+    monkeypatch.setattr(core, "MATINEE_URL", f"http://{MATINEE_HOST}")
+    monkeypatch.setattr(core, "MATINEE_API_KEY", MATINEE_KEY)
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    return fake
