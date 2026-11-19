@@ -1,0 +1,18 @@
+{
+  "id": "msg_01FixtureMusical",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-5-5",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"matches\": [{\"id\": 13, \"why\": \"songs and dancing from start to finish\"}, {\"id\": 4242, \"why\": \"a musical the list does not have\"}, {\"id\": 14, \"why\": \"the Muppets sing the whole story\"}], \"suggestions\": [{\"title\": \"Holiday Inn\", \"year\": 1942, \"why\": \"the movie that first brought us the song White Christmas\"}, {\"title\": \"White Christmas\", \"year\": 1954, \"why\": \"Bing Crosby and Danny Kaye sing and dance\"}, {\"title\": \"The Phantom Reindeer Opera\", \"year\": 2001, \"why\": \"an opera about a reindeer\"}, {\"title\": \"Meet Me in St. Louis\", \"year\": 1944, \"why\": \"a family musical with a Christmas scene\"}]}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 2342,
+    "output_tokens": 214
+  }
+}

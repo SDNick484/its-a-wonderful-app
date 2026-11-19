@@ -140,5 +140,6 @@ def test_api_empty_query_is_the_whole_list_in_list_order(library_client):
 def test_api_no_match_is_200_and_empty(library_client):
     client, _ = library_client
     r = client.get("/api/search?q=zzz")
-    assert r.status_code == 200 and r.get_json() == {"mode": "local", "matches": [], "suggestions": []}
+    # no key in tests, so smart search is off and the local filter says so (spec §9 step 3; Task 12)
+    assert r.status_code == 200 and r.get_json() == {"mode": "local", "matches": [], "suggestions": [], "notice": "Smart search is off right now."}
 

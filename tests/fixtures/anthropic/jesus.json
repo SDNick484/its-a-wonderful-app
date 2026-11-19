@@ -1,0 +1,18 @@
+{
+  "id": "msg_01FixtureJesus",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-5-5",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"matches\": [{\"id\": 11, \"why\": \"the Nativity story, told by the animals\"}], \"suggestions\": [{\"title\": \"The Nativity Story\", \"year\": 2006, \"why\": \"Mary and Joseph's journey to Bethlehem, played straight\"}]}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 2310,
+    "output_tokens": 118
+  }
+}

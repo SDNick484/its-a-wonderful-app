@@ -6,6 +6,7 @@ const APP_NAME = "It's a Wonderful App";
 const state = {
   movies: [],
   shownIds: null,   // the ids the grid shows, in list order; null shows the whole list (search.js sets it)
+  whys: {},         // movie id -> the one-line reason smart search gave for it (search.js sets it, the grid shows it)
 };
 
 // ================================================================= Helpers

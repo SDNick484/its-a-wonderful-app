@@ -1,0 +1,92 @@
+{
+  "adult": false,
+  "backdrop_path": null,
+  "belongs_to_collection": null,
+  "genres": [
+    {
+      "id": 18,
+      "name": "Drama"
+    },
+    {
+      "id": 10751,
+      "name": "Family"
+    }
+  ],
+  "id": 900302,
+  "imdb_id": null,
+  "original_language": "en",
+  "original_title": "The Nativity Story",
+  "overview": "Mary and Joseph travel to Bethlehem.",
+  "poster_path": "/900302-poster.jpg",
+  "release_date": "2006-12-01",
+  "runtime": 101,
+  "status": "Released",
+  "title": "The Nativity Story",
+  "video": false,
+  "vote_average": 6.5,
+  "vote_count": 400,
+  "release_dates": {
+    "results": [
+      {
+        "iso_3166_1": "US",
+        "release_dates": [
+          {
+            "certification": "PG",
+            "descriptors": [],
+            "iso_639_1": "en",
+            "note": "",
+            "release_date": "1989-11-17T00:00:00.000Z",
+            "type": 3
+          }
+        ]
+      }
+    ]
+  },
+  "credits": {
+    "cast": [
+      {
+        "adult": false,
+        "gender": 0,
+        "id": 1000,
+        "known_for_department": "Acting",
+        "name": "Sam Elliott",
+        "original_name": "Sam Elliott",
+        "popularity": 10.0,
+        "profile_path": null,
+        "cast_id": 0,
+        "character": "Role",
+        "credit_id": "52fe40000",
+        "order": 0
+      },
+      {
+        "adult": false,
+        "gender": 0,
+        "id": 1001,
+        "known_for_department": "Acting",
+        "name": "Rebecca Harrell",
+        "original_name": "Rebecca Harrell",
+        "popularity": 10.0,
+        "profile_path": null,
+        "cast_id": 1,
+        "character": "Role",
+        "credit_id": "52fe40001",
+        "order": 1
+      },
+      {
+        "adult": false,
+        "gender": 0,
+        "id": 1002,
+        "known_for_department": "Acting",
+        "name": "Cloris Leachman",
+        "original_name": "Cloris Leachman",
+        "popularity": 10.0,
+        "profile_path": null,
+        "cast_id": 2,
+        "character": "Role",
+        "credit_id": "52fe40002",
+        "order": 2
+      }
+    ],
+    "crew": []
+  }
+}

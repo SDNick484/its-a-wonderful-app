@@ -243,3 +243,61 @@ def matinee_down(client, monkeypatch):
     monkeypatch.setattr(core, "MATINEE_API_KEY", MATINEE_KEY)
     monkeypatch.setattr(urllib.request, "urlopen", fake)
     return fake
+
+
+# ------------------------------------------------------------------------------------------------ Anthropic, recorded
+ANTHROPIC_FIXTURES = FIXTURES / "anthropic"
+ANTHROPIC_KEY = "sk-ant-test-key"
+
+
+class FakeAnthropic:
+    """Stands in for urllib.request.urlopen for the Anthropic Messages API, answering from tests/fixtures/anthropic/
+    (message shapes as the API sends them) and recording each request body in `.calls` and its timeout in `.timeouts`.
+    The fixture is chosen by the search text in the prompt (`files`: lower-cased query -> file); a test forces one with
+    `.file`. `.error` makes every call fail: an int is an HTTP status (529 carries the recorded overloaded body), an
+    exception is raised as it is. Requests to any other host go to `other`, so this composes with tmdb_fixtures."""
+
+    def __init__(self, other):
+        self.other = other
+        self.calls, self.timeouts, self.headers = [], [], []
+        self.files = {"a movie about jesus": "jesus.json", "a musical": "musical.json"}
+        self.file = None
+        self.error = None
+
+    def prompt(self, body):
+        return body["messages"][0]["content"]
+
+    def __call__(self, req, timeout=None):
+        import json
+        url = urllib.parse.urlparse(req.full_url)
+        if url.netloc != "api.anthropic.com":
+            return self.other(req, timeout=timeout)
+        assert url.path == "/v1/messages" and req.get_method() == "POST"
+        self.headers.append({"key": req.get_header("X-api-key"), "version": req.get_header("Anthropic-version"),
+                             "type": req.get_header("Content-type")})
+        body = json.loads(req.data)
+        self.calls.append(body)
+        self.timeouts.append(timeout)
+        if isinstance(self.error, BaseException):
+            raise self.error
+        if isinstance(self.error, int):
+            raise urllib.error.HTTPError(req.full_url, self.error, "Error", {},
+                                         io.BytesIO((ANTHROPIC_FIXTURES / "overloaded_529.json").read_bytes()))
+        query = re.search(r"<request>\n(.*)\n</request>", self.prompt(body), re.S).group(1).strip().lower()
+        name = self.file or self.files.get(query)
+        assert name, f"no Anthropic fixture for the search {query!r}"
+        return io.BytesIO((ANTHROPIC_FIXTURES / name).read_bytes())
+
+
+@pytest.fixture
+def anthropic_fixtures(client, monkeypatch):
+    """Anthropic answers from the recorded fixtures (no live network), with a key set. Returns the FakeAnthropic with
+    its .calls list. Use it with `client`; list tmdb_fixtures before it in a test that needs TMDB too (suggestions
+    are looked up there)."""
+    import urllib.request
+    import app as core
+
+    monkeypatch.setattr(core, "ANTHROPIC_API_KEY", ANTHROPIC_KEY)
+    fake = FakeAnthropic(urllib.request.urlopen)
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    return fake

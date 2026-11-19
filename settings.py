@@ -79,4 +79,5 @@ HA_WEBHOOK_URL = os.environ.get("HA_WEBHOOK_URL", "").strip()
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 AI_MODEL = os.environ.get("AI_MODEL", "").strip() or "claude-haiku-5-5"
 AI_DAILY_CAP = _int("AI_DAILY_CAP", 200)
+AI_TIMEOUT = _int("AI_TIMEOUT", 20)   # seconds to wait for Anthropic before search falls back to the list filter
 UA = "wonderful/1.0 (family Christmas movie picker; https://github.com/SDNick484/its-a-wonderful-app)"

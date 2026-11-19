@@ -94,6 +94,7 @@ add_setting "$CONF" MATINEE_API_KEY "" "Matinee's MATINEE_API_KEY (its write key
 add_setting "$CONF" ANTHROPIC_API_KEY "" "Anthropic API key for smart search; empty = smart search is off"
 add_setting "$CONF" AI_MODEL "claude-haiku-5-5" "Model smart search uses"
 add_setting "$CONF" AI_DAILY_CAP 200 "Smart searches per day across the family; past it search falls back to the list filter"
+add_setting "$CONF" AI_TIMEOUT 20 "Seconds smart search waits for the model before falling back to the list filter"
 # Holds API keys, so root only: OpenRC and the cron jobs run as root; the service gets what it needs from the environment.
 chmod 600 "$CONF"; chown root:root "$CONF"
 
@@ -134,7 +135,7 @@ description="It's a Wonderful App (family Christmas movie picker)"
 : ${PORT:=8772}
 : ${DATA_DIR:=/var/lib/wonderful}
 export HOME=/var/lib/wonderful  # newer gunicorn keeps a small control socket under $HOME
-export PORT DATA_DIR TZ CF_TEAM_DOMAIN CF_AUD ADMIN_EMAILS LAN_EDIT LAN_HOSTS WONDERFUL_API_KEY HA_HOOK_SECRET HA_WEBHOOK_URL TMDB_READ_TOKEN MATINEE_URL MATINEE_API_KEY ANTHROPIC_API_KEY AI_MODEL AI_DAILY_CAP
+export PORT DATA_DIR TZ CF_TEAM_DOMAIN CF_AUD ADMIN_EMAILS LAN_EDIT LAN_HOSTS WONDERFUL_API_KEY HA_HOOK_SECRET HA_WEBHOOK_URL TMDB_READ_TOKEN MATINEE_URL MATINEE_API_KEY ANTHROPIC_API_KEY AI_MODEL AI_DAILY_CAP AI_TIMEOUT
 supervisor="supervise-daemon"
 respawn_delay=5
 respawn_max=10

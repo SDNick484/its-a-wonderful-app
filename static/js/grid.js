@@ -34,6 +34,7 @@ function cardHtml(m) {
     + `<div class="poster-wrap">${posterHtml(m)}<span class="rating-slot">${starHtml(m)}</span></div>`
     + `<div class="card-title">${esc(m.title)}</div>`
     + (m.year ? `<div class="card-year">${m.year}</div>` : "")
+    + (state.whys[m.id] ? `<div class="card-why">${esc(state.whys[m.id])}</div>` : "")
     + (first ? `<div class="card-where" data-kind="${esc(first.kind)}">${esc(first.label)}</div>` : "")
     + `</a>`;
 }
