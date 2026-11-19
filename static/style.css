@@ -137,6 +137,10 @@ input, select, button, textarea {
   letter-spacing: -0.02em;
 }
 
+.brand-name {
+  font-size: inherit;   /* the h1 takes the brand's size, not the browser's 2em */
+}
+
 main {
   width: 100%;
   max-width: 960px;
@@ -256,4 +260,229 @@ main {
   .toast-container {
     transition: none;
   }
+}
+
+/* ---------------------------------------------------------------- buttons, fields, header add button */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.icon-btn {
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--r-chip);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.icon-btn-quiet {
+  background: var(--raised);
+  color: var(--ink);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 0 var(--s4);
+  border: 1px solid transparent;
+  border-radius: var(--r-card);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  text-align: center;
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.btn-quiet {
+  background: var(--raised);
+  border-color: var(--field-border);
+  color: var(--ink);
+}
+
+.field {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  padding: var(--s2) var(--s3);
+  background: var(--field);
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-card);
+  font-size: var(--fs-md);
+}
+
+/* ---------------------------------------------------------------- grid card extras */
+.poster-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.rating-slot {
+  position: absolute;
+  right: var(--s1);
+  bottom: var(--s1);
+}
+.rating-slot:empty {
+  display: none;
+}
+.card-year {
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+
+/* ---------------------------------------------------------------- detail view */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  font-weight: 600;
+}
+.detail-backdrop {
+  margin: 0 calc(var(--s4) * -1) var(--s3);
+  aspect-ratio: 16 / 9;
+  background: var(--card);
+  overflow: hidden;
+}
+.detail-backdrop img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.detail-head {
+  display: flex;
+  gap: var(--s4);
+  align-items: flex-start;
+}
+.detail-poster {
+  flex: none;
+  width: 112px;
+}
+.detail-titles {
+  min-width: 0;
+}
+.detail-title {
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+.detail-meta, .detail-collection, .detail-cast {
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+}
+.detail-meta {
+  margin-top: var(--s2);
+}
+.detail-overview {
+  margin-top: var(--s4);
+}
+.detail-label {
+  margin: var(--s4) 0 var(--s1);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin: var(--s4) 0 var(--s5);
+}
+
+/* ---------------------------------------------------------------- add sheet */
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / .6);
+}
+.sheet-panel {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: var(--s4) var(--s4) max(var(--s4), env(safe-area-inset-bottom));
+  background: var(--card);
+  border-radius: var(--r-sheet) var(--r-sheet) 0 0;
+  box-shadow: var(--shadow);
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--s3);
+}
+.sheet-title {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+.add-results {
+  margin-top: var(--s3);
+}
+.add-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--line);
+}
+.add-what {
+  min-width: 0;
+}
+.add-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.add-kind {
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+.add-row .btn {
+  flex: none;
+}
+.add-note {
+  color: var(--ink-2);
+  padding: var(--s4) 0;
+}
+.tmdb-credit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: var(--s4);
+  font-size: var(--fs-xs);
+  color: var(--ink-3);
+}
+.site-footer p + p {
+  margin-top: var(--s2);
 }

@@ -12,16 +12,27 @@
   <header class="site-header">
     <div class="header-inner">
       <a href="#/" class="brand" id="brand-link"><h1 class="brand-name">It's a Wonderful App</h1></a>
+      <button type="button" class="icon-btn" id="add-btn" aria-label="Add a movie">+</button>
     </div>
   </header>
 
   <main id="view">
-    <h2 class="section-title">Our Christmas movies</h2>
-    <div class="grid" id="grid" aria-label="Movies on our list"></div>
-    <p class="empty" id="grid-empty">Loading…</p>
+    <section id="grid-view">
+      <h2 class="section-title">Our Christmas movies</h2>
+      <div class="grid" id="grid" aria-label="Movies on our list"></div>
+      <p class="empty" id="grid-empty">Loading…</p>
+    </section>
+    <section id="detail-view" hidden>
+      <a href="#/" class="back-link" id="back-link">&larr; Our list</a>
+      <div id="detail"></div>
+    </section>
   </main>
 
-  <footer class="site-footer">It's a Wonderful App: the family Christmas movie picker</footer>
+  <footer class="site-footer">
+    <p>It's a Wonderful App: the family Christmas movie picker</p>
+    <p class="tmdb-credit"><img src="/static/tmdb.svg" alt="TMDB" width="64" height="12">
+      <span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span></p>
+  </footer>
 
   <div id="toast" class="toast-container" role="status" aria-live="polite"></div>
 </body>

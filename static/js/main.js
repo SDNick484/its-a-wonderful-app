@@ -1,16 +1,30 @@
 // It's a Wonderful App: entry point. static/index.html loads this with <script type="module">; app.py's
 // render_index() versions every module through an import map, so never hand-edit ?v=.
-import { api, APP_NAME, esc, state, toast } from "./core.js";
+import { api, APP_NAME, toast } from "./core.js";
+import { openAddSheet } from "./add.js";
+import { showDetail } from "./detail.js";
+import { loadMovies, watchPosters } from "./grid.js";
 
-function renderGrid() {
-  const grid = document.getElementById("grid");
-  const empty = document.getElementById("grid-empty");
-  grid.innerHTML = state.movies
-    .map(m => `<a class="movie-card" href="#/m/${m.id}"><div class="poster-wrap"><div class="poster-ph">${esc(m.title)}</div></div>`
-      + `<div class="card-title">${esc(m.title)}</div></a>`)
-    .join("");
-  empty.hidden = state.movies.length > 0;
-  empty.textContent = "No movies on our list yet.";
+let gridScroll = 0;
+
+// #/ is the grid, #/m/<id> one movie. The grid keeps its scroll position while a movie is open.
+function route() {
+  const grid = document.getElementById("grid-view");
+  const detail = document.getElementById("detail-view");
+  const m = location.hash.match(/^#\/m\/(\d+)$/);
+  if (m) {
+    if (!grid.hidden) gridScroll = window.scrollY;
+    grid.hidden = true;
+    detail.hidden = false;
+    window.scrollTo(0, 0);
+    showDetail(Number(m[1]));
+  } else {
+    const wasDetail = !detail.hidden;
+    detail.hidden = true;
+    grid.hidden = false;
+    document.title = APP_NAME;
+    if (wasDetail) window.scrollTo(0, gridScroll);
+  }
 }
 
 async function start() {
@@ -20,7 +34,12 @@ async function start() {
   } catch (e) {
     toast(`Can't reach the app: ${e.message}`);
   }
-  renderGrid();
+  watchPosters(document.getElementById("grid"));
+  const add = document.getElementById("add-btn");
+  add.addEventListener("click", () => openAddSheet(add));
+  window.addEventListener("hashchange", route);
+  await loadMovies();
+  route();
 }
 
 window.addEventListener("DOMContentLoaded", start);
