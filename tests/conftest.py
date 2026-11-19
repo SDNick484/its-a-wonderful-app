@@ -17,7 +17,7 @@ FIXTURES = Path(__file__).parent / "fixtures"   # tmdb/, matinee/, anthropic/: r
 
 # The SPA's ES modules in static/js/. tests/test_js_modules.py checks this list is complete.
 JS_DIR = ROOT / "static" / "js"
-JS_MODULES = ["add.js", "core.js", "detail.js", "grid.js", "main.js", "search.js", "settings.js", "surprise.js"]
+JS_MODULES = ["add.js", "core.js", "detail.js", "grid.js", "main.js", "rating.js", "search.js", "settings.js", "surprise.js"]
 
 
 def _no_network(*a, **kw):
@@ -45,6 +45,7 @@ def _isolate(tmp_path, monkeypatch):
     monkeypatch.setattr(core, "TMDB_READ_TOKEN", "")
     monkeypatch.setattr(core, "MATINEE_API_KEY", "")
     monkeypatch.setattr(core, "_matinee_failed_at", None, raising=False)   # movies.py's page-view backoff, per test
+    monkeypatch.setattr(core, "_first_run_failed_at", None, raising=False)   # people.py's first-run backoff, per test
     monkeypatch.setattr(core, "ANTHROPIC_API_KEY", "")
     monkeypatch.setattr(urllib.request, "urlopen", _no_network)
     core.init_db()
@@ -163,6 +164,7 @@ class FakeMatinee:
         self.calls = []                                # (method, path, body or None), in order
         self.headers = []                              # the Authorization header of each request
         self.owned_files = {10719: "owned_elf.json"}
+        self.people_file = "people.json"               # people_five.json has a fifth person
 
     def _json(self, name):
         return io.BytesIO((MATINEE_FIXTURES / name).read_bytes())
@@ -186,7 +188,7 @@ class FakeMatinee:
         if m == "GET" and url.path == "/admin/api/titles/1":
             return self._json("title_detail_elf.json")
         if m == "GET" and url.path == "/admin/api/people":
-            return self._json("people.json")
+            return self._json(self.people_file)
         if m == "PUT" and url.path == "/admin/api/titles/1/rating":
             if (body["rating"] * 2) % 1:
                 self._http_error(req, 400, "rating_400.json")

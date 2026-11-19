@@ -11,6 +11,9 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /api/movies       GET the list, POST {tmdb_id, tmdb_type} to add; /api/movies/<id> GET, PUT, DELETE
   /api/search       our list: an exact title, else the local filter (?q=)
   /api/surprise     POST {filters, exclude}: three random picks from our list (the Surprise us button)
+  /api/people       GET the family (copied from Matinee on first run), POST {name, kind, color} to add one here;
+                    POST /api/people/sync copies Matinee's people again
+  /api/movies/<id>/ratings/<person_id>   PUT {"rating": 8.5 | null}: one person's rating (0.5 steps), null clears it
   /api/services     GET the streaming services, PUT {key, status} to subscribe, consider or ignore one
   /api/movies/<id>/providers/refresh   POST: ask TMDB where it streams now
   (ownership and shelf come from Matinee: asked on add, on the detail view when over a day old, and nightly)
@@ -34,14 +37,14 @@ from db import SCHEMA, SCHEMA_VERSION, connect, get_db, migrate, init_db  # noqa
 from auth import KEY_IDENTITY, presented_key, lan_host, access_identity, cross_site  # noqa: F401
 from auth import editor_required, hook_required  # noqa: F401
 from tmdb import TmdbError  # noqa: F401
-import images, matinee, movies, providers, randomizer, search, tmdb  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
+import images, matinee, movies, people, providers, randomizer, ratings, search, sync, tmdb  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
 
 
 # ===================================================================== split modules
 # app.py re-exports every name the sibling modules define, so `app.X` works everywhere. A write to app.X (monkeypatch
 # in the tests) also rebinds X in each split module that holds it, so their code reads the new value. Patch app.X,
 # never the sibling module. A new module goes here and in installer/build.sh's cp line.
-_SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "images", "matinee", "movies", "providers", "randomizer", "search")
+_SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "images", "matinee", "movies", "people", "providers", "randomizer", "ratings", "search", "sync")
 
 
 class _AppModule(types.ModuleType):
@@ -214,12 +217,18 @@ def api_surprise():
     return jsonify(randomizer.surprise(get_db(), request.get_json(silent=True)))
 
 
+def _movie_json(con, row):
+    """movie_out plus the rating fields: family_rating and rating_source (what the poster shows, spec §8.2) and
+    `family` {mean, by_person} for the detail view."""
+    return {**movies.movie_out(row), **ratings.out(con, row["id"])}
+
+
 @app.get("/api/movies")
 @editor_required
 def api_movies():
     """The list. Each movie carries `where_to_watch` read from the providers cache: no TMDB call per card."""
     con = get_db()
-    return jsonify([{**movies.movie_out(r), "where_to_watch": providers.where_to_watch(con, r["id"])}
+    return jsonify([{**_movie_json(con, r), "where_to_watch": providers.where_to_watch(con, r["id"])}
                     for r in movies.list_rows(con)])
 
 
@@ -234,7 +243,7 @@ def api_movie_add():
     except TmdbError as e:   # the movie is added; its providers arrive on the next refresh
         app.logger.warning("watch providers for movie %s: %s", movie_id, e.message)
     movies.refresh_ownership(con, movie_id)   # never fails: Matinee down means "not known yet", the nightly job retries
-    return jsonify({**movies.movie_out(movies.get_row(con, movie_id)), **providers.movie_providers(con, movie_id)}), 201
+    return jsonify({**_movie_json(con, movies.get_row(con, movie_id)), **providers.movie_providers(con, movie_id)}), 201
 
 
 @app.get("/api/movies/<int:movie_id>")
@@ -245,7 +254,7 @@ def api_movie(movie_id):
     known ownership is shown with "(as of <date>)"."""
     con = get_db()
     movies.refresh_ownership_if_stale(con, movie_id)
-    return jsonify({**movies.movie_out(movies.get_row(con, movie_id)), **providers.movie_providers(con, movie_id)})
+    return jsonify({**_movie_json(con, movies.get_row(con, movie_id)), **providers.movie_providers(con, movie_id)})
 
 
 @app.post("/api/movies/<int:movie_id>/providers/refresh")
@@ -263,7 +272,7 @@ def api_providers_refresh(movie_id):
 def api_movie_update(movie_id):
     con = get_db()
     movies.update_movie(con, movie_id, request.get_json(silent=True))
-    return jsonify(movies.movie_out(movies.get_row(con, movie_id)))
+    return jsonify(_movie_json(con, movies.get_row(con, movie_id)))
 
 
 @app.delete("/api/movies/<int:movie_id>")
@@ -271,6 +280,47 @@ def api_movie_update(movie_id):
 def api_movie_remove(movie_id):
     movies.remove_movie(get_db(), movie_id)
     return jsonify(ok=True)
+
+
+# ========================================================================= people and ratings
+@app.get("/api/people")
+@editor_required
+def api_people():
+    """The family: [{id, name, kind, color, sort_order, active}]. When there is nobody yet and Matinee is set up, they
+    are copied from Matinee first (spec §8.4); if Matinee can't answer the list is simply empty."""
+    con = get_db()
+    people.first_run_sync(con)
+    return jsonify(people.list_people(con))
+
+
+@app.post("/api/people")
+@editor_required
+def api_person_add():
+    """{"name", "kind": "adult" | "kid", "color": "green" | "blue" | "red" | "pink" | "purple"} -> the new person (201).
+    Someone who lives only here, like a grandparent visiting: they rate, and are not sent to Matinee."""
+    return jsonify(people.add_person(get_db(), request.get_json(silent=True))), 201
+
+
+@app.post("/api/people/sync")
+@editor_required
+def api_people_sync():
+    """Copy Matinee's people by name -> {"added", "updated", "people"}. Matinee down or refusing is a 502 with its reason."""
+    con = get_db()
+    try:
+        done = people.sync_from_matinee(con, matinee.client())
+    except (matinee.Unavailable, matinee.Rejected) as e:
+        return make_err(502, e.message)
+    return jsonify(**done, people=people.list_people(con))
+
+
+@app.put("/api/movies/<int:movie_id>/ratings/<int:person_id>")
+@editor_required
+def api_rating_set(movie_id, person_id):
+    """{"rating": 8.5 | null} -> {"family_rating", "rating_source", "family"}: one person's rating of one movie in 0.5
+    steps from 0 to 10, null clears it. 400 for 7.3 or 11. The family mean is null again when the last rating goes."""
+    con = get_db()
+    ratings.set(con, movie_id, person_id, ratings.parse_body(request.get_json(silent=True)))
+    return jsonify(ratings.out(con, movie_id))
 
 
 @app.get("/api/services")
