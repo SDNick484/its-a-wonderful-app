@@ -129,8 +129,8 @@ it starts on the TV; if not, it at least marks that it's tonight's movie."*
           writes: household rating, watch (+ attendees)
 ```
 
-- **Hosting (builder's call, my suggestion):** the same Alpine container as Matinee and Wish Lists, its own
-  OpenRC service and port, exposed through the existing Cloudflare Tunnel as its own hostname.
+- **Hosting (decided by Nick):** the same Alpine container as Matinee, its own OpenRC service on **port 8782**,
+  exposed through the existing Cloudflare Tunnel as its own hostname (`wonderful.example.com` in these docs).
 - **Access:** the whole app (pages and API) requires either a direct LAN request (`LAN_EDIT`-style: addressed by
   IP, localhost or a `LAN_HOSTS` name, not via Cloudflare) or a verified Cloudflare Access JWT for an
   `ADMIN_EMAILS` user. There is no anonymous public view. `/hooks/tv` instead requires the `HA_HOOK_SECRET`
@@ -551,7 +551,7 @@ This needs an HA long-lived token and a per-service deep-link table, and will be
 
 ## 16. Settings (`/etc/conf.d/wonderful`, documented in `.env.example`)
 
-`PORT`, `DATA_DIR`, `TMDB_READ_TOKEN`, `MATINEE_URL`, `MATINEE_API_KEY`, `HA_HOOK_SECRET`, `HA_WEBHOOK_URL`, `ANTHROPIC_API_KEY`,
+`PORT` (default `8782`), `DATA_DIR`, `TMDB_READ_TOKEN`, `MATINEE_URL`, `MATINEE_API_KEY`, `HA_HOOK_SECRET`, `HA_WEBHOOK_URL`, `ANTHROPIC_API_KEY`,
 `AI_MODEL`, `AI_DAILY_CAP`, `CF_TEAM_DOMAIN`, `CF_AUD`, `ADMIN_EMAILS`, `LAN_EDIT`, `LAN_HOSTS`, `TZ` (dates are
 local, America/Los_Angeles on the host). Subscriptions, theme on/off and light/dark live in the database.
 
@@ -617,7 +617,6 @@ buttons ≥ 44 px, scrim contrast, reduced motion stops animation.
 
 ## 20. Left to the builder
 
-- Port number, hostname and whether it shares Matinee's container.
 - Module split inside the Flask app (follow Matinee's `app.py` + route-free siblings).
 - Exact provider-id → service mapping (TMDB names such as "Max" vs "HBO Max" change; keep it data-driven).
 - The AI prompt wording and model default (a current Haiku-class model is plenty).
