@@ -1,0 +1,49 @@
+{
+  "people": [
+    {
+      "active": true,
+      "color": "green",
+      "id": 1,
+      "kind": "adult",
+      "name": "Avery",
+      "sort_order": 0,
+      "watch_count": 2
+    },
+    {
+      "active": true,
+      "color": "blue",
+      "id": 2,
+      "kind": "adult",
+      "name": "Blake",
+      "sort_order": 1,
+      "watch_count": 2
+    },
+    {
+      "active": true,
+      "color": "red",
+      "id": 3,
+      "kind": "kid",
+      "name": "Casey",
+      "sort_order": 2,
+      "watch_count": 2
+    },
+    {
+      "active": true,
+      "color": "pink",
+      "id": 4,
+      "kind": "kid",
+      "name": "Drew",
+      "sort_order": 3,
+      "watch_count": 1
+    },
+    {
+      "active": true,
+      "color": "purple",
+      "id": 5,
+      "kind": "adult",
+      "name": "Emery",
+      "sort_order": 4,
+      "watch_count": 0
+    }
+  ]
+}

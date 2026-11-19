@@ -1,5 +1,6 @@
 // It's a Wonderful App: the poster grid. Loads the list into state.movies and draws a card for each movie.
 import { api, esc, state, toast } from "./core.js";
+import { starText } from "./rating.js";
 
 // A poster, or (no poster, or one that won't load) a placeholder carrying the movie's title.
 function posterHtml(m) {
@@ -20,11 +21,17 @@ function watchPosters(root) {
   }, true);
 }
 
+// The star on a poster: the family mean, or Matinee's rating until someone here rates (spec §8.2).
+function starHtml(m) {
+  const text = starText(m.family_rating);
+  return text ? `<span class="star" data-source="${esc(m.rating_source)}" aria-label="Rated ${m.family_rating.toFixed(1)}">${text}</span>` : "";
+}
+
 function cardHtml(m) {
   const label = m.year ? `${m.title} (${m.year})` : m.title;
   const first = (m.where_to_watch || [])[0];   // the best place to watch it (spec §7.2)
   return `<a class="movie-card" href="#/m/${m.id}" aria-label="${esc(label)}">`
-    + `<div class="poster-wrap">${posterHtml(m)}<span class="rating-slot"></span></div>`
+    + `<div class="poster-wrap">${posterHtml(m)}<span class="rating-slot">${starHtml(m)}</span></div>`
     + `<div class="card-title">${esc(m.title)}</div>`
     + (m.year ? `<div class="card-year">${m.year}</div>` : "")
     + (first ? `<div class="card-where" data-kind="${esc(first.kind)}">${esc(first.label)}</div>` : "")

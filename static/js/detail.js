@@ -2,6 +2,7 @@
 // parent note) and Remove.
 import { api, esc, state, toast } from "./core.js";
 import { loadMovies, posterHtml, renderGrid, watchPosters } from "./grid.js";
+import { dotsHtml, openRatingSheet, starText } from "./rating.js";
 
 const CERT_CHOICES = ["G", "PG", "PG-13", "R", "NR"];
 
@@ -20,6 +21,14 @@ function whereHtml(m) {
     + `<p class="where-credit"><span>Data from ${source}</span> <button type="button" class="btn btn-quiet" id="detail-refresh">Check again</button></p>`;
 }
 
+// "★ 8.6 family" and the dot row (spec §11), or a note that Matinee's rating is showing, with the Rate button.
+function ratingsHtml(m) {
+  const star = starText(m.family_rating);
+  const label = !star ? "Nobody has rated it yet." : m.rating_source === "matinee" ? `${star} family rating from Matinee` : `${star} family`;
+  return `<p class="rating-head" id="detail-rating-head">${esc(label)}</p>${dotsHtml(m.family)}`
+    + `<div class="detail-actions"><button type="button" class="btn" id="detail-rate">${m.family?.by_person.some(p => p.rating !== null) ? "Change ratings" : "Rate it"}</button></div>`;
+}
+
 function detailHtml(m) {
   const meta = [m.year, m.certification, runtimeText(m.runtime_min), m.tmdb_type === "tv" ? "TV special" : ""].filter(Boolean);
   const certs = CERT_CHOICES.includes(m.certification) || !m.certification ? CERT_CHOICES : [...CERT_CHOICES, m.certification];
@@ -30,6 +39,7 @@ function detailHtml(m) {
     + (m.collection_name ? `<p class="detail-collection">Part of ${esc(m.collection_name)}</p>` : "")
     + `</div></div>`
     + (m.overview ? `<p class="detail-overview">${esc(m.overview)}</p>` : "")
+    + `<h3 class="detail-label">Ratings</h3><div id="detail-ratings">${ratingsHtml(m)}</div>`
     + `<h3 class="detail-label">Where to watch</h3><div id="detail-where-box">${whereHtml(m)}</div>`
     + (m.top_cast.length ? `<h3 class="detail-label">Cast</h3><p class="detail-cast">${m.top_cast.map(esc).join(", ")}</p>` : "")
     + `<h3 class="detail-label"><label for="detail-cert">Certification</label></h3>`
@@ -44,6 +54,15 @@ function detailHtml(m) {
 // Replace the movie in state.movies so the grid is right when the person goes back.
 function keepInState(m) {
   state.movies = state.movies.map(x => (x.id === m.id ? { ...x, ...m } : x));
+}
+
+// A rating was saved: show it here and on the card behind this screen.
+function ratingsSaved(m, saved) {
+  Object.assign(m, { family_rating: saved.family_rating, rating_source: saved.rating_source, family: saved.family });
+  keepInState({ id: m.id, family_rating: m.family_rating, rating_source: m.rating_source, family: m.family });
+  const box = document.getElementById("detail-ratings");
+  if (box && box.isConnected && Number(location.hash.split("/")[2]) === m.id) box.innerHTML = ratingsHtml(m);
+  renderGrid();
 }
 
 async function saveNote(m, note) {
@@ -107,6 +126,14 @@ async function showDetail(id) {
     box.innerHTML = `<p class="empty">${e.status === 404 ? "That movie isn't on our list." : esc(e.message)}</p>`;
     return;
   }
+  if (!m.family?.by_person.length) {
+    // Nobody in the family yet: asking for the people copies them from Matinee the first time (spec §8.4).
+    try {
+      if ((await api("/api/people")).length) m = await api(`/api/movies/${id}`);
+    } catch {
+      // the movie still shows; the Rate sheet says to add the family in Settings
+    }
+  }
   box.innerHTML = detailHtml(m);
   watchPosters(box);
   document.title = `${m.title}: It's a Wonderful App`;
@@ -116,6 +143,8 @@ async function showDetail(id) {
   document.getElementById("detail-remove").addEventListener("click", () => removeMovie(m));
   box.addEventListener("click", e => {
     if (e.target.closest("#detail-refresh")) refreshProviders(m, false);
+    const rate = e.target.closest("#detail-rate");
+    if (rate) openRatingSheet(m, rate, saved => ratingsSaved(m, saved));
   });
   if (m.providers_stale) refreshProviders(m, true);
 }

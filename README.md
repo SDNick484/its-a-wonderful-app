@@ -46,6 +46,18 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   over a day old, and every night. If Matinee is down, slow or refuses the key, nothing else breaks: the last known
   answer stays and reads "(as of Dec 3)", and the nightly refresh tries again. TV-only specials are never asked
   (Matinee knows movies only). With no `MATINEE_API_KEY` the whole sync is off.
+- **People and ratings.** **Settings → People** lists the family: they are copied from Matinee by name (kind, colour
+  and order too) the first time the app needs them, and again with **Sync people from Matinee**; **Add someone** adds
+  a person who lives only here (a visitor), who rates like everyone else and is not sent to Matinee. On a movie's
+  detail view, **Rate it** opens a sheet with one row per person: number buttons **1** to **10** and a **½** (8, then
+  ½, is 8.5; tap the same value again to clear it; anyone can be left unrated), then **Done**. Ratings are 0 to 10 in
+  half steps (7.3 or 11 is refused). The family rating is the mean to one decimal (8, 9, 10, 8, 8 is **8.6**); it shows
+  as **★ 8.6** on the poster and as a row of coloured dots with each person's rating on the detail view. Clear the last
+  rating and the family rating goes away. While Matinee holds the rating of a movie it owns and nobody has rated here,
+  the poster shows Matinee's rating ("family rating from Matinee"). Rating never needs Matinee. Sending the rating to
+  Matinee arrives with the rating-sync task.
+  API: `GET`/`POST /api/people` (`{"name", "kind": "adult" | "kid", "color"}`), `POST /api/people/sync`,
+  `PUT /api/movies/<id>/ratings/<person_id>` (`{"rating": 8.5}` or `null` to clear).
 - **Settings → Subscriptions** (the gear in the header). Each streaming service is **Subscribed**, **Considering** or
   **Ignore**, and every card follows at once. Starting statuses: Netflix, Disney+, Hulu, Prime Video, Fandango at
   Home and YouTube TV subscribed; HBO Max, Peacock, Paramount+ and Apple TV considering. The list, each service's

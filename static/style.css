@@ -645,3 +645,143 @@ main {
 .surprise-again[hidden] {
   display: none;
 }
+
+/* ---------------------------------------------------------------- ratings and people (spec §8.2, §11) */
+.star {
+  display: inline-block;
+  padding: 2px var(--s2);
+  border-radius: var(--r-chip);
+  background: rgb(11 11 14 / .86);   /* a scrim, so the star reads over any poster */
+  color: var(--amber);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  line-height: 1.4;
+}
+.dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  color: var(--page);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  line-height: 1;
+}
+.dot[data-color="green"] { background: var(--p-user1); }
+.dot[data-color="blue"] { background: var(--p-user2); }
+.dot[data-color="red"] { background: var(--p-user3); }
+.dot[data-color="pink"] { background: var(--p-user4); }
+.dot[data-color="purple"] { background: var(--p-user5); }
+.rating-head {
+  font-weight: 700;
+  color: var(--amber);
+}
+.rating-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  list-style: none;
+  margin: var(--s3) 0 0;
+  padding: 0;
+}
+.rating-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+.dot-val {
+  font-weight: 700;
+}
+.rate-hint {
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--s3);
+}
+.rate-row {
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--line);
+}
+.rate-who {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+}
+.rate-name {
+  font-weight: 700;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.rate-val {
+  font-weight: 800;
+  color: var(--amber);
+}
+.rate-btns {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));   /* 1-10 and ½ wrap onto two rows on a phone */
+  gap: var(--s1);
+}
+.rate-btn {
+  min-height: var(--tap);
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-card);
+  background: var(--raised);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.rate-btn[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
+}
+.rate-actions {
+  margin-top: var(--s3);
+}
+.rate-actions .btn {
+  width: 100%;
+}
+.people-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.person {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--tap);
+  border-bottom: 1px solid var(--line);
+}
+.person-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.person-kind {
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+}
+.person-form {
+  display: flex;
+  gap: var(--s2);
+}
+.person-form #person-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.person-form select {
+  flex: none;
+  width: auto;
+}
+.person-form .btn {
+  flex: none;
+}

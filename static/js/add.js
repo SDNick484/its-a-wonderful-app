@@ -3,7 +3,7 @@ import { api, esc, toast } from "./core.js";
 import { loadMovies } from "./grid.js";
 
 const SEARCH_DELAY_MS = 350;
-let sheet = null;
+let addSheet = null;
 let opener = null;
 let searchTimer = null;
 let searchSeq = 0;
@@ -67,11 +67,11 @@ async function addMovie(btn) {
 }
 
 function closeSheet() {
-  if (!sheet) return;
+  if (!addSheet) return;
   clearTimeout(searchTimer);
   searchSeq++;
-  sheet.remove();
-  sheet = null;
+  addSheet.remove();
+  addSheet = null;
   document.removeEventListener("keydown", onKey);
   if (opener) opener.focus();
 }
@@ -81,28 +81,28 @@ function onKey(e) {
 }
 
 function openAddSheet(from) {
-  if (sheet) return;
+  if (addSheet) return;
   opener = from || null;
-  sheet = document.createElement("div");
-  sheet.className = "sheet";
-  sheet.innerHTML = sheetHtml();
-  document.body.appendChild(sheet);
-  sheet.addEventListener("click", e => {
+  addSheet = document.createElement("div");
+  addSheet.className = "sheet";
+  addSheet.innerHTML = sheetHtml();
+  document.body.appendChild(addSheet);
+  addSheet.addEventListener("click", e => {
     const add = e.target.closest("[data-add]");
     if (add) return addMovie(add);
     if (e.target.closest("[data-close]")) closeSheet();
   });
-  sheet.querySelector("#add-form").addEventListener("submit", e => {
+  addSheet.querySelector("#add-form").addEventListener("submit", e => {
     e.preventDefault();
     clearTimeout(searchTimer);
     runSearch();
   });
-  sheet.querySelector("#add-q").addEventListener("input", () => {
+  addSheet.querySelector("#add-q").addEventListener("input", () => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(runSearch, SEARCH_DELAY_MS);
   });
   document.addEventListener("keydown", onKey);
-  sheet.querySelector("#add-q").focus();
+  addSheet.querySelector("#add-q").focus();
 }
 
 export { openAddSheet };
