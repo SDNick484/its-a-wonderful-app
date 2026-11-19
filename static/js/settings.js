@@ -5,7 +5,6 @@ import { api, esc, toast } from "./core.js";
 import { loadMovies } from "./grid.js";
 import { dotHtml } from "./rating.js";
 import { THEME_NAMES, previewTheme, savePrefs, themeInfo } from "./theme.js";
-import { loadWorth } from "./worth.js";
 
 const CHOICES = [["subscribed", "Subscribed"], ["considering", "Considering"], ["ignore", "Ignore"]];
 
@@ -105,10 +104,6 @@ function settingsHtml(services) {
     + `<p class="settings-hint">Subscribed services make a movie ready to watch. Considering ones show "(you don't have it)". `
     + `Ignore hides a service everywhere.</p>`
     + `<ul class="svc-list">${services.map(serviceHtml).join("")}</ul>`
-    + `<h3 class="detail-label">Worth a Month?</h3>`
-    + `<p class="settings-hint">For each service you're considering: the movies on our list it would add, not owned, `
-    + `not on a service you have, and not watched this year.</p>`
-    + `<div id="worth-box" class="worth-box"></div>`
     + `<div id="people-box"></div>`;
 }
 
@@ -157,7 +152,7 @@ async function setStatus(li, button) {
     toast(`Couldn't save: ${e.message}`);
     return;
   }
-  await Promise.all([loadMovies(), loadWorth()]);   // the cards' where-to-watch lines and Worth a Month? follow the new status
+  await loadMovies();   // the cards' where-to-watch lines follow the new status
 }
 
 async function showSettings() {
@@ -181,7 +176,6 @@ async function showSettings() {
   });
   if (people) showPeople(people);
   else document.getElementById("people-box").innerHTML = `<p class="empty">Couldn't load the people.</p>`;
-  loadWorth();
   const peopleBox = document.getElementById("people-box");   // new on every visit, so these listeners never pile up
   peopleBox.addEventListener("click", e => {
     const sync = e.target.closest("#people-sync");

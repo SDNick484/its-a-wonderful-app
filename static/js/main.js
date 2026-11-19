@@ -9,36 +9,42 @@ import { wireSearch } from "./search.js";
 import { showSettings } from "./settings.js";
 import { wireSurprise } from "./surprise.js";
 import { startTheme } from "./theme.js";
-import { loadWorth } from "./worth.js";
+import { showWorth } from "./worth.js";
 
 let gridScroll = 0;
 
-// #/ is the grid, #/m/<id> one movie, #/settings the settings. The grid keeps its scroll position while another
-// screen is open.
+// #/ is the grid, #/m/<id> one movie, #/settings the settings, #/worth Worth a Month?. The grid keeps its scroll
+// position while another screen is open.
 function route() {
   const grid = document.getElementById("grid-view");
   const detail = document.getElementById("detail-view");
   const settings = document.getElementById("settings-view");
+  const worth = document.getElementById("worth-view");
   const m = location.hash.match(/^#\/m\/(\d+)$/);
-  const other = m || location.hash === "#/settings";
-  if (other) {
+  const view = m ? "detail" : location.hash === "#/settings" ? "settings" : location.hash === "#/worth" ? "worth" : "grid";
+  const worthBtn = document.getElementById("worth-btn");
+  if (view === "worth") worthBtn.setAttribute("aria-current", "page");
+  else worthBtn.removeAttribute("aria-current");
+  if (view !== "grid") {
     if (!grid.hidden) gridScroll = window.scrollY;
     grid.hidden = true;
-    detail.hidden = !m;
-    settings.hidden = !!m;
+    detail.hidden = view !== "detail";
+    settings.hidden = view !== "settings";
+    worth.hidden = view !== "worth";
     window.scrollTo(0, 0);
     if (m) showDetail(Number(m[1]));
-    else showSettings();
+    else if (view === "settings") showSettings();
+    else showWorth();
   } else {
     const wasOther = grid.hidden;
     detail.hidden = true;
     settings.hidden = true;
+    worth.hidden = true;
     grid.hidden = false;
     document.title = APP_NAME;
     if (wasOther) {
       window.scrollTo(0, gridScroll);
       loadContinue();   // a Watch tonight or a finish on the detail view shows on the row
-      loadWorth();      // and a finish changes what the family hasn't watched this year
     }
   }
 }
@@ -59,7 +65,6 @@ async function start() {
   add.addEventListener("click", () => openAddSheet(add));
   window.addEventListener("hashchange", route);
   await Promise.all([loadMovies(), loadContinue()]);
-  await loadWorth();   // after the list: its posters come from the loaded movies
   route();
   checkPrompt();   // "Did you finish …?" the first time the app opens after the TV stopped a movie
 }

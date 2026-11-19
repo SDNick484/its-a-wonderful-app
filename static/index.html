@@ -20,6 +20,7 @@
     <div class="header-inner">
       <a href="#/" class="brand" id="brand-link"><h1 class="brand-name">It's a Wonderful App</h1></a>
       <div class="header-actions">
+        <a href="#/worth" class="header-link" id="worth-btn" aria-label="Worth a Month?"><span class="header-link-long">Worth a Month?</span><span class="header-link-short" aria-hidden="true">Worth it?</span></a>
         <a href="#/settings" class="icon-btn icon-btn-quiet" id="settings-btn" aria-label="Settings">&#9881;&#xFE0E;</a>
         <button type="button" class="icon-btn" id="add-btn" aria-label="Add a movie">+</button>
       </div>
@@ -40,11 +41,6 @@
         <div class="grid surprise-picks" id="surprise-picks"></div>
         <button type="button" class="btn btn-quiet surprise-again" id="surprise-again" hidden>Keep the change (pick again)</button>
       </section>
-      <section class="worth" id="worth" aria-labelledby="worth-title" hidden>
-        <h2 class="section-title" id="worth-title">Worth a Month?</h2>
-        <p class="settings-hint">Which service you don't have would add the most movies we haven't watched this year.</p>
-        <div id="worth-list"></div>
-      </section>
       <form id="search-form" class="search-form" role="search">
         <label class="sr-only" for="search-input">Search our list by title, actor or series</label>
         <input type="search" id="search-input" class="field" enterkeyhint="search" autocomplete="off"
@@ -61,6 +57,13 @@
     <section id="detail-view" hidden>
       <a href="#/" class="back-link" id="back-link">&larr; Our list</a>
       <div id="detail"></div>
+    </section>
+    <section id="worth-view" aria-labelledby="worth-title" hidden>
+      <a href="#/" class="back-link" id="worth-back">&larr; Our list</a>
+      <h2 class="section-title" id="worth-title">Worth a Month?</h2>
+      <p class="settings-hint">Streaming services you don't have, and the movies on our list each would add that you haven't watched this year.</p>
+      <div id="worth-list"></div>
+      <a href="#/settings" class="back-link worth-settings-link" id="worth-settings">Change which services you have</a>
     </section>
     <section id="settings-view" hidden>
       <a href="#/" class="back-link" id="settings-back">&larr; Our list</a>

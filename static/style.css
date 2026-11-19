@@ -562,6 +562,34 @@ main {
 #settings-btn {
   font-size: 1.5rem;
 }
+/* The Worth a Month? tab link, styled like Matinee's ghost header buttons; under 400 px it says "Worth it?" */
+.header-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: transparent;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+.header-link:hover {
+  background: var(--raised);
+}
+.header-link-short {
+  display: none;
+}
+@media (max-width: 399px) {
+  .header-link-long {
+    display: none;
+  }
+  .header-link-short {
+    display: inline;
+  }
+}
 .card-where {
   margin-top: var(--s1);
   font-size: var(--fs-xs);
@@ -700,12 +728,8 @@ main {
   display: none;
 }
 
-/* Worth a Month? (spec §13): the home card and the Settings list; one row per considering service */
-.worth {
-  margin-bottom: var(--s5);
-}
-.worth-list,
-.worth-box .worth-list {
+/* Worth a Month? (spec §13): the top tab; one row per considering service */
+.worth-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -726,6 +750,9 @@ main {
 }
 .worth-posters {
   margin-bottom: var(--s2);
+}
+.worth-settings-link {
+  margin-top: var(--s4);
 }
 
 /* ---------------------------------------------------------------- ratings and people (spec §8.2, §11) */
