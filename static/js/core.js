@@ -5,6 +5,7 @@ const APP_NAME = "It's a Wonderful App";
 // ================================================================= State
 const state = {
   movies: [],
+  shownIds: null,   // the ids the grid shows, in list order; null shows the whole list (search.js sets it)
 };
 
 // ================================================================= Helpers
