@@ -700,6 +700,34 @@ main {
   display: none;
 }
 
+/* Worth a Month? (spec §13): the home card and the Settings list; one row per considering service */
+.worth {
+  margin-bottom: var(--s5);
+}
+.worth-list,
+.worth-box .worth-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.worth-service {
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.worth-line {
+  margin-bottom: var(--s2);
+}
+.worth-name {
+  font-weight: 700;
+}
+.worth-reason {
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+}
+.worth-posters {
+  margin-bottom: var(--s2);
+}
+
 /* ---------------------------------------------------------------- ratings and people (spec §8.2, §11) */
 .star {
   display: inline-block;
