@@ -808,3 +808,78 @@ main {
 .person-form .btn {
   flex: none;
 }
+
+/* ---------------------------------------------------------------- Continue Watching (spec §10) */
+.continue {
+  margin-bottom: var(--s5);
+}
+.continue-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));   /* the same three columns as the grid on a phone */
+  gap: var(--s3);
+}
+@media (min-width: 600px) {
+  .continue-row {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+}
+.continue-item {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-card);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.continue-status {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.continue-status[data-status="tonight"],
+.continue-status[data-status="watching"] {
+  color: var(--amber);
+}
+.sheet-text {
+  color: var(--ink-2);
+  margin-bottom: var(--s3);
+}
+.sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+.sheet-actions .btn {
+  flex: 1 1 140px;
+}
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  margin-top: var(--s2);
+  padding: 0 var(--s1);
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.tonight-status {
+  margin-top: var(--s4);
+  font-weight: 700;
+  color: var(--amber);
+}
+.tonight-status + .detail-actions {
+  margin-top: var(--s2);
+}
+.rate-row-dim .rate-name {
+  color: var(--ink-3);   /* not at the viewing: still rateable, just after the ones who were */
+  font-weight: 600;
+}

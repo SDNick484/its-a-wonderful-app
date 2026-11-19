@@ -16,6 +16,10 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /api/movies/<id>/ratings/<person_id>   PUT {"rating": 8.5 | null}: one person's rating (0.5 steps), null clears it
   /api/movies/<id>/rating-conflict       POST {"choice": "ours" | "matinee" | "dismiss"}: settle "Matinee says 7, we
                     say 8.9" (the family rating is kept in step with Matinee's, sync.py)
+  /api/movies/<id>/tonight   POST {"people": [ids]}?: Watch tonight (spec §10.1) -> the viewing
+  /api/continue     GET the Continue Watching row; /api/prompt GET the "Did you finish?" question, or null
+  /api/viewings/<id>/keep | not-yet | finish | abandon   POST: Keep watching tonight, Not yet, We finished
+                    ({"finished_on": "2026-12-12"}?; Matinee gets the watch, Home Assistant the movie log), We gave up
   /api/services     GET the streaming services, PUT {key, status} to subscribe, consider or ignore one
   /api/movies/<id>/providers/refresh   POST: ask TMDB where it streams now
   (ownership and shelf come from Matinee: asked on add, on the detail view when over a day old, and nightly)
@@ -39,14 +43,15 @@ from db import SCHEMA, SCHEMA_VERSION, connect, get_db, migrate, init_db  # noqa
 from auth import KEY_IDENTITY, presented_key, lan_host, access_identity, cross_site  # noqa: F401
 from auth import editor_required, hook_required  # noqa: F401
 from tmdb import TmdbError  # noqa: F401
-import images, matinee, movies, people, providers, randomizer, ratings, search, sync, tmdb  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
+import ha, images, matinee, movies, people, providers, randomizer, ratings, search, sync, tmdb, viewings  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
 
 
 # ===================================================================== split modules
 # app.py re-exports every name the sibling modules define, so `app.X` works everywhere. A write to app.X (monkeypatch
 # in the tests) also rebinds X in each split module that holds it, so their code reads the new value. Patch app.X,
 # never the sibling module. A new module goes here and in installer/build.sh's cp line.
-_SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "images", "matinee", "movies", "people", "providers", "randomizer", "ratings", "search", "sync")
+_SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "images", "matinee", "movies", "people", "providers", "randomizer",
+                  "ratings", "search", "sync", "ha", "viewings")
 
 
 class _AppModule(types.ModuleType):
@@ -256,7 +261,8 @@ def api_movie(movie_id):
     known ownership is shown with "(as of <date>)"."""
     con = get_db()
     movies.refresh_ownership_if_stale(con, movie_id)
-    return jsonify({**_movie_json(con, movies.get_row(con, movie_id)), **providers.movie_providers(con, movie_id)})
+    return jsonify({**_movie_json(con, movies.get_row(con, movie_id)), **providers.movie_providers(con, movie_id),
+                    "viewing": viewings.open_for_movie(con, movie_id)})
 
 
 @app.post("/api/movies/<int:movie_id>/providers/refresh")
@@ -335,6 +341,74 @@ def api_rating_conflict(movie_id):
     data = request.get_json(silent=True)
     sync.resolve_conflict(con, movie_id, data.get("choice") if isinstance(data, dict) else None)
     return jsonify(ratings.out(con, movie_id))
+
+
+# ========================================================================= viewings (spec §10)
+def _body():
+    data = request.get_json(silent=True)
+    return data if isinstance(data, dict) else {}
+
+
+@app.post("/api/movies/<int:movie_id>/tonight")
+@editor_required
+def api_watch_tonight(movie_id):
+    """{"people": [person ids]}? -> the viewing (out()). Watch tonight: the movie's open viewing, or a new one with every
+    active person (or `people`). Any other viewing that was tonight goes back to Continue Watching."""
+    con = get_db()
+    viewing_id = viewings.watch_tonight(con, movie_id, _body().get("people"))
+    return jsonify(viewings.out(con, viewing_id))
+
+
+@app.get("/api/continue")
+@editor_required
+def api_continue():
+    """{"viewings": [...]}: the Continue Watching row, tonight's first. A pick left from last night is set aside first."""
+    con = get_db()
+    viewings.expire_stale(con)
+    return jsonify(viewings=viewings.continue_watching(con))
+
+
+@app.get("/api/prompt")
+@editor_required
+def api_prompt():
+    """{"prompt": {"viewing_id", "title", "guess": "finished" | "not_finished"} | null}: "Did you finish …?"."""
+    con = get_db()
+    viewings.expire_stale(con)
+    return jsonify(prompt=viewings.pending_prompt(con))
+
+
+@app.post("/api/viewings/<int:viewing_id>/keep")
+@editor_required
+def api_viewing_keep(viewing_id):
+    con = get_db()
+    viewings.keep_watching(con, viewing_id)
+    return jsonify(viewings.out(con, viewing_id))
+
+
+@app.post("/api/viewings/<int:viewing_id>/not-yet")
+@editor_required
+def api_viewing_not_yet(viewing_id):
+    con = get_db()
+    viewings.not_yet(con, viewing_id)
+    return jsonify(viewings.out(con, viewing_id))
+
+
+@app.post("/api/viewings/<int:viewing_id>/finish")
+@editor_required
+def api_viewing_finish(viewing_id):
+    """{"finished_on": "YYYY-MM-DD"}? -> the viewing, with watch_pending true when Matinee couldn't take the watch yet
+    (it goes tonight). 409 when it was already finished: nothing is sent twice."""
+    con = get_db()
+    viewings.finish(con, viewing_id, viewings.parse_finished_on(_body().get("finished_on")))
+    return jsonify(viewings.out(con, viewing_id))
+
+
+@app.post("/api/viewings/<int:viewing_id>/abandon")
+@editor_required
+def api_viewing_abandon(viewing_id):
+    con = get_db()
+    viewings.abandon(con, viewing_id)
+    return jsonify(viewings.out(con, viewing_id))
 
 
 @app.get("/api/services")

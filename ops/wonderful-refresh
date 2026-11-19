@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Nightly refresh (spec §7.2, §8.1): ask TMDB again where each movie streams when its cache is over 7 days old, and ask
-Matinee again whether each movie is owned (and where it sits) when the last good answer is over a day old or missing.
+"""Nightly refresh (spec §7.2, §8.1, §8.3): ask TMDB again where each movie streams when its cache is over 7 days old,
+ask Matinee again whether each movie is owned (and where it sits) when the last good answer is over a day old or
+missing, and send Matinee the watches of finished movies it couldn't take at the time.
 
-  ops/wonderful-refresh           run both; prints one line per problem and a summary (the installer's cron wrapper
+  ops/wonderful-refresh           run all three; prints one line per problem and a summary (the installer's cron wrapper
                                   appends it to /var/log/ops.log); exit 1 if anything could not be refreshed
   ops/wonderful-refresh --dry-run say what would be asked: no TMDB or Matinee call, no write
 
@@ -70,6 +71,25 @@ def refresh_ownership(con, *, dry_run=False, say=say):
     return checked, 0, 0
 
 
+def retry_watches(con, *, dry_run=False, say=say):
+    """The Matinee watches still owed (a finish while Matinee was down). Returns (sent, failed, left): the first failure
+    stops the run, like the ownership check. Home Assistant was told at the finish and is not told again."""
+    owed = app.viewings.owed_ids(con)
+    if not owed:
+        return 0, 0, 0
+    if not app.matinee.configured():
+        say(f"Matinee sync is off (no MATINEE_API_KEY): {len(owed)} watch(es) not sent")
+        return 0, 0, len(owed)
+    if dry_run:
+        for viewing_id in owed:
+            say(f"would send the Matinee watch of viewing {viewing_id}")
+        return len(owed), 0, 0
+    sent, failed, left = app.viewings.retry_watches(con)
+    if failed:
+        say(f"a watch could not be sent to Matinee. Stopping; {left} more left for tomorrow.")
+    return sent, failed, left
+
+
 def hand_back(data_dir):
     """Run as root, a database file created here would belong to root: give the data folder's files to its owner."""
     if os.geteuid() != 0:
@@ -81,17 +101,19 @@ def hand_back(data_dir):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Nightly refresh of watch providers (TMDB) and ownership (Matinee).")
+    ap = argparse.ArgumentParser(description="Nightly refresh of watch providers (TMDB), ownership (Matinee) and owed watches.")
     ap.add_argument("--dry-run", action="store_true", help="say what would be asked; no TMDB or Matinee call, no write")
     args = ap.parse_args(argv)
     with app.app.app_context():
         con = app.get_db()
         p_done, p_failed = refresh_providers(con, dry_run=args.dry_run)
         o_done, o_failed, o_skipped = refresh_ownership(con, dry_run=args.dry_run)
+        w_done, w_failed, w_left = retry_watches(con, dry_run=args.dry_run)
     hand_back(app.DATA_DIR)
     say(f"{'would refresh' if args.dry_run else 'refreshed'} providers for {p_done} ({p_failed} failed); "
-        f"ownership checked for {o_done} ({o_failed} failed, {o_skipped} left for tomorrow)")
-    return 1 if p_failed or o_failed else 0
+        f"ownership checked for {o_done} ({o_failed} failed, {o_skipped} left for tomorrow); "
+        f"{'would send' if args.dry_run else 'sent'} {w_done} watch(es) to Matinee ({w_failed} failed, {w_left} left)")
+    return 1 if p_failed or o_failed or w_failed else 0
 
 
 if __name__ == "__main__":

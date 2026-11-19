@@ -1,5 +1,6 @@
 // It's a Wonderful App: one movie's detail view (backdrop, overview, runtime, certification, cast, collection, the
-// parent note), the family rating (with the notice when Matinee disagrees) and Remove.
+// parent note), Watch tonight / We finished, the family rating (with the notice when Matinee disagrees) and Remove.
+import { finishViewing, keepWatching, watchTonight } from "./continue.js";
 import { api, esc, state, toast } from "./core.js";
 import { loadMovies, posterHtml, renderGrid, watchPosters } from "./grid.js";
 import { dotsHtml, openRatingSheet, starText } from "./rating.js";
@@ -42,6 +43,17 @@ function ratingsHtml(m) {
     + `<div class="detail-actions"><button type="button" class="btn" id="detail-rate">${m.family?.by_person.some(p => p.rating !== null) ? "Change ratings" : "Rate it"}</button></div>`;
 }
 
+// Watch tonight, or where the movie's open viewing stands with Keep watching tonight and We finished (spec §10).
+function tonightHtml(m) {
+  const v = m.viewing;
+  if (!v) return `<div class="detail-actions"><button type="button" class="btn" id="detail-tonight">Watch tonight</button></div>`;
+  const where = v.status === "paused" ? `In Continue Watching${v.progress ? `: ${v.progress}` : ""}.`
+    : v.status === "watching" ? "Watching now." : "On for tonight.";
+  return `<p class="tonight-status" id="detail-tonight-status">${esc(where)}</p><div class="detail-actions">`
+    + (v.status === "paused" ? `<button type="button" class="btn" id="detail-keep">Keep watching tonight</button>` : "")
+    + `<button type="button" class="btn${v.status === "paused" ? " btn-quiet" : ""}" id="detail-finish">We finished</button></div>`;
+}
+
 function detailHtml(m) {
   const meta = [m.year, m.certification, runtimeText(m.runtime_min), m.tmdb_type === "tv" ? "TV special" : ""].filter(Boolean);
   const certs = CERT_CHOICES.includes(m.certification) || !m.certification ? CERT_CHOICES : [...CERT_CHOICES, m.certification];
@@ -52,6 +64,7 @@ function detailHtml(m) {
     + (m.collection_name ? `<p class="detail-collection">Part of ${esc(m.collection_name)}</p>` : "")
     + `</div></div>`
     + (m.overview ? `<p class="detail-overview">${esc(m.overview)}</p>` : "")
+    + `<div id="detail-tonight-box">${tonightHtml(m)}</div>`
     + `<h3 class="detail-label">Ratings</h3><div id="detail-ratings">${ratingsHtml(m)}</div>`
     + `<h3 class="detail-label">Where to watch</h3><div id="detail-where-box">${whereHtml(m)}</div>`
     + (m.top_cast.length ? `<h3 class="detail-label">Cast</h3><p class="detail-cast">${m.top_cast.map(esc).join(", ")}</p>` : "")
@@ -118,6 +131,23 @@ async function refreshProviders(m, quiet) {
   renderGrid();   // the card behind this screen shows the new line when the person goes back
 }
 
+function redrawTonight(m) {
+  const box = document.getElementById("detail-tonight-box");
+  if (box && box.isConnected && Number(location.hash.split("/")[2]) === m.id) box.innerHTML = tonightHtml(m);
+}
+
+// Watch tonight, Keep watching tonight or We finished, from the detail view.
+async function tonightAction(m, which, button) {
+  button.disabled = true;
+  let v = null;
+  if (which === "tonight") v = await watchTonight(m.id);
+  else if (which === "keep") v = await keepWatching(m.viewing);
+  else v = await finishViewing(m.viewing, saved => ratingsSaved(m, saved));
+  if (v) m.viewing = v.status === "finished" || v.status === "abandoned" ? null : v;
+  if (button.isConnected) button.disabled = false;
+  redrawTonight(m);
+}
+
 const SETTLED = { ours: "Sent ours to Matinee.", matinee: "Using Matinee's rating.", dismiss: "Left as it is." };
 
 async function settleConflict(m, choice, button) {
@@ -172,6 +202,8 @@ async function showDetail(id) {
   document.getElementById("detail-remove").addEventListener("click", () => removeMovie(m));
   box.addEventListener("click", e => {
     if (e.target.closest("#detail-refresh")) refreshProviders(m, false);
+    const tonight = e.target.closest("#detail-tonight, #detail-keep, #detail-finish");
+    if (tonight) tonightAction(m, tonight.id.slice("detail-".length), tonight);
     const rate = e.target.closest("#detail-rate");
     if (rate) openRatingSheet(m, rate, saved => ratingsSaved(m, saved));
     const choice = e.target.closest("[data-choice]");
