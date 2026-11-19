@@ -1,0 +1,25 @@
+{
+  "page": 1,
+  "results": [
+    {
+      "adult": false,
+      "backdrop_path": null,
+      "id": 900301,
+      "overview": "",
+      "poster_path": "/900301-poster.jpg",
+      "media_type": "movie",
+      "genre_ids": [
+        10751
+      ],
+      "popularity": 5.0,
+      "vote_average": 7.0,
+      "vote_count": 100,
+      "title": "Holiday Inn",
+      "original_title": "Holiday Inn",
+      "release_date": "1942-08-04",
+      "video": false
+    }
+  ],
+  "total_pages": 1,
+  "total_results": 1
+}

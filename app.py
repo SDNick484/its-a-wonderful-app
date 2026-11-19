@@ -9,7 +9,7 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /api/me           {"editor": "<who>"}
   /api/tmdb/search  TMDB search for the add sheet (?q=)
   /api/movies       GET the list, POST {tmdb_id, tmdb_type} to add; /api/movies/<id> GET, PUT, DELETE
-  /api/search       our list: an exact title, else the local filter (?q=)
+  /api/search       our list: an exact title, else smart search (AI), else the local filter (?q=)
   /api/surprise     POST {filters, exclude}: three random picks from our list (the Surprise us button)
   /api/people       GET the family (copied from Matinee on first run), POST {name, kind, color} to add one here;
                     POST /api/people/sync copies Matinee's people again
@@ -38,20 +38,20 @@ from flask import Flask, g, jsonify, make_response, request, send_from_directory
 from settings import APP_NAME, APP_DIR, _load_env, parse_hosts, PORT, DATA_DIR, DB_PATH, POSTER_DIR, ART_DIR  # noqa: F401
 from settings import CF_TEAM_DOMAIN, CF_AUD, ADMIN_EMAILS, LAN_EDIT, LAN_HOSTS, WONDERFUL_API_KEY, HA_HOOK_SECRET  # noqa: F401
 from settings import TMDB_READ_TOKEN, TMDB_API, TMDB_IMG, MATINEE_URL, MATINEE_API_KEY, HA_WEBHOOK_URL  # noqa: F401
-from settings import ANTHROPIC_API_KEY, AI_MODEL, AI_DAILY_CAP, UA, SERVICES_FILE  # noqa: F401
+from settings import ANTHROPIC_API_KEY, AI_MODEL, AI_DAILY_CAP, AI_TIMEOUT, UA, SERVICES_FILE  # noqa: F401
 from common import RATING_ERROR, clean, make_err, validate_rating, round_half_up, today, now_iso  # noqa: F401
 from db import SCHEMA, SCHEMA_VERSION, connect, get_db, migrate, init_db  # noqa: F401
 from auth import KEY_IDENTITY, presented_key, lan_host, access_identity, cross_site  # noqa: F401
 from auth import editor_required, hook_required  # noqa: F401
 from tmdb import TmdbError  # noqa: F401
-import ha, images, matinee, movies, people, providers, randomizer, ratings, search, sync, tmdb, viewings  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
+import ai, ha, images, matinee, movies, people, providers, randomizer, ratings, search, sync, tmdb, viewings  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
 
 
 # ===================================================================== split modules
 # app.py re-exports every name the sibling modules define, so `app.X` works everywhere. A write to app.X (monkeypatch
 # in the tests) also rebinds X in each split module that holds it, so their code reads the new value. Patch app.X,
 # never the sibling module. A new module goes here and in installer/build.sh's cp line.
-_SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "images", "matinee", "movies", "people", "providers", "randomizer",
+_SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "ai", "images", "matinee", "movies", "people", "providers", "randomizer",
                   "ratings", "search", "sync", "ha", "viewings")
 
 
@@ -206,14 +206,17 @@ def api_tmdb_search():
 @app.get("/api/search")
 @editor_required
 def api_search():
-    """{"mode": "exact" | "local", "matches": [{"id", "why"}], "suggestions": []}: an exact title (normalized) is the
-    only match; otherwise the local filter. An empty q is the whole list. Suggestions come with AI search (Task 12)."""
+    """{"mode": "exact" | "ai" | "local", "matches": [{"id", "why"}], "suggestions": [{"title", "year", "why", "tmdb_id",
+    "tmdb_type"}], "notice": str | null}: an exact title (normalized) is the only match; otherwise smart search (one
+    Anthropic call, cached), which falls back to the local filter with the notice "Smart search is off right now." when
+    it can't answer. An empty q is the whole list. Suggestions are titles that are not on the list: nothing is added
+    until someone taps Add (POST /api/movies)."""
     con = get_db()
     q = clean(request.args.get("q")) or ""
     hit = search.exact(con, q)
     if hit is not None:
         return jsonify(mode="exact", matches=[{"id": hit, "why": "exact title"}], suggestions=[])
-    return jsonify(mode="local", matches=search.local_matches(con, q), suggestions=[])
+    return jsonify(search.ai(con, q))
 
 
 @app.post("/api/surprise")

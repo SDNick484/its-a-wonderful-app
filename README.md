@@ -21,8 +21,15 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   once to `$DATA_DIR/posters/`; a missing poster shows a titled placeholder. Adding needs `TMDB_READ_TOKEN`.
   API: `GET /api/tmdb/search?q=`, `GET`/`POST /api/movies`, `GET`/`PUT`/`DELETE /api/movies/<id>`.
 - **Search.** The box above the grid filters the list as you type, by title, year, actor or collection (no network).
-  Enter shows an exact title on its own (`elf` → *Elf*; "The" and punctuation don't count), otherwise the matches.
-  API: `GET /api/search?q=` → `{"mode", "matches": [{"id", "why"}], "suggestions"}`.
+  Enter shows an exact title on its own (`elf` → *Elf*; "The" and punctuation don't count). Anything else is **smart
+  search** when `ANTHROPIC_API_KEY` is set: one call to the model asks which movies on our list fit ("a movie about
+  Jesus", "a musical") and shows them with a one-line reason, then a **Not on our list yet** section of up to three
+  titles the list doesn't have, each with **Add to our list**. Nothing is added until someone taps that button.
+  The query and the list (titles, cast, overviews and parent notes) go to Anthropic; nothing about people or
+  ratings does. Answers are cached until the list changes, and `AI_DAILY_CAP` limits calls a day. With no key, a
+  spent cap or a failed call, Enter shows the plain list filter and says "Smart search is off right now."
+  API: `GET /api/search?q=` → `{"mode": "exact" | "ai" | "local", "matches": [{"id", "why"}], "suggestions":
+  [{"title", "year", "why", "tmdb_id", "tmdb_type"}], "notice"}`; a suggestion is added with `POST /api/movies`.
 - **Surprise us.** **🎲 Surprise us, ya filthy animals**, above the grid, draws three different movies from the list
   with a poster, runtime and where to watch on each; tap one for its detail view. **Keep the change (pick again)**
   draws three more, skipping what was shown, until the list runs out and then says it is starting over. Six chips
@@ -198,7 +205,7 @@ All in `/etc/conf.d/wonderful` on the host; every one is documented in [`.env.ex
 | `HA_WEBHOOK_URL` | Home Assistant webhook for the movie log (a secret) |
 | `TMDB_READ_TOKEN` | TMDB read token: posters, details, where to watch |
 | `MATINEE_URL`, `MATINEE_API_KEY` | Matinee's address and key: ownership, ratings and watches |
-| `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_DAILY_CAP` | Smart search |
+| `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_DAILY_CAP`, `AI_TIMEOUT` | Smart search: the key, the model, searches per day, seconds to wait |
 
 ## Development
 

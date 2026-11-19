@@ -358,6 +358,26 @@ main {
   font-size: var(--fs-xs);
   color: var(--ink-2);
 }
+.card-why {
+  margin-top: var(--s1);
+  font-size: var(--fs-xs);
+  line-height: 1.25;
+  color: var(--ink-2);
+}
+
+/* Smart search's "Not on our list yet": titles to add, one tap each (spec §9). Rows are the add sheet's .add-row. */
+.suggest {
+  margin-top: var(--s5);
+}
+.suggest-title {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  margin-bottom: var(--s2);
+}
+.add-why {
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+}
 
 /* ---------------------------------------------------------------- detail view */
 .back-link {
