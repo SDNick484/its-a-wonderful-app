@@ -24,7 +24,8 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /api/movies/<id>/providers/refresh   POST: ask TMDB where it streams now
   (ownership and shelf come from Matinee: asked on add, on the detail view when over a day old, and nightly)
   /posters/<name>   the local poster and backdrop copies
-  /hooks/tv         Home Assistant TV events (auth.hook_required: X-Hook-Secret)
+  /hooks/tv         Home Assistant TV events {"state", "source", "at"}: open and close the night's TV session, which
+                    sets the finish guess (auth.hook_required: X-Hook-Secret; docs/home-assistant.md)
   /static/<path>    CSS, ES modules, fonts: no auth (no data in them)
 
 Environment: see settings.py and .env.example (/etc/conf.d/wonderful on the host).
@@ -371,7 +372,8 @@ def api_continue():
 @app.get("/api/prompt")
 @editor_required
 def api_prompt():
-    """{"prompt": {"viewing_id", "title", "guess": "finished" | "not_finished"} | null}: "Did you finish …?"."""
+    """{"prompt": {"viewing_id", "title", "guess": "finished" | "not_finished" | null} | null}: "Did you finish …?".
+    A TV session left open past runtime + 60 min is closed first (it may be what asks)."""
     con = get_db()
     viewings.expire_stale(con)
     return jsonify(prompt=viewings.pending_prompt(con))
@@ -439,9 +441,12 @@ def poster_file(name):
 @app.post("/hooks/tv")
 @hook_required
 def hook_tv():
-    """Home Assistant TV events (spec §10.2). The rules arrive with the TV webhook task; until then an
-    authenticated event is accepted and changes nothing."""
-    return jsonify(ok=True, applied=False)
+    """Home Assistant's Family Room TV events (spec §10.2), {"state", "source", "at"} -> {"ok": true, "applied",
+    "action": "opened" | "closed" | "ignored", "reason"}. An event that doesn't fit (a duplicate, out of order, nothing
+    on for tonight) is a 200 that changes nothing; a malformed body is a 400. docs/home-assistant.md has the automation."""
+    state, source, at = ha.parse_tv_event(request.get_json(silent=True))
+    result = ha.handle_tv_event(get_db(), state, source, at)
+    return jsonify(ok=True, applied=result["action"] != "ignored", **result)
 
 
 init_db()
