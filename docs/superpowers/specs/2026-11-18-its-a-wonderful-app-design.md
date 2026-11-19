@@ -475,9 +475,12 @@ Klaus · ★ 8.6 family
 
 ## 13. Worth a Month?
 
-A card on the home screen in November and December, and always in settings. For each `considering` service:
-the count and posters of list movies that are (a) not owned, (b) not on a subscribed or free service, (c) on
-this service's flatrate, and (d) not watched this year. Sorted by count; a service adding 0 says so.
+A top tab, **Worth a Month?**, reached from a link in the header (`#/worth`), always available, all year. The
+header link reads "Worth it?" under 400 px. The tab opens with a line of explanation, then, for each `considering`
+service: the count and posters of list movies that are (a) not owned, (b) not on a subscribed or free service, (c) on
+this service's flatrate, and (d) not watched this year. Sorted by count; a service adding 0 says so. A link at the
+bottom goes to Settings to change which services you have. Settings and the home grid carry no copy of the list.
+`/api/worth` still returns `season` for compatibility; the tab ignores it.
 
 ```
 Peacock adds 3: How the Grinch Stole Christmas! (1966) · How the Grinch Stole Christmas (2000) · The Grinch (2018)

@@ -103,8 +103,8 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   API: `GET`/`PUT /api/services` (`{"key": "peacock", "status": "subscribed"}`),
   `POST /api/movies/<id>/providers/refresh`.
 - **Worth a Month?** For each service you're considering, the movies on our list it would add: not owned in Matinee,
-  not on a service you have (or free anywhere), and not watched this year. Shown as a card on the home screen in
-  November and December, and always in Settings, most movies first; a service adding nothing says why. It only reads
+  not on a service you have (or free anywhere), and not watched this year. It is the **Worth a Month?** tab, opened
+  from the header link at any time of year, most movies first; a service adding nothing says why. It only reads
   the cache, so it works while TMDB or Matinee is down. API: `GET /api/worth`
   (`{"year", "season", "services": [{"service", "name", "movies", "count", "reason"}]}`).
 - **Advent themes.** The app wears a scene for each week of Advent, by the host's local date (`TZ`, never UTC): the
