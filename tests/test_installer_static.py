@@ -165,7 +165,8 @@ def test_built_installer_carries_the_app(tmp_path):
     with tarfile.open(fileobj=io.BytesIO(base64.b64decode(payload)), mode="r:gz") as tar:
         names = set(tar.getnames())
     for f in ("wonderful/app.py", "wonderful/auth.py", "wonderful/static/js/package.json", "wonderful/static/js/main.js",
-              "wonderful/static/fonts/figtree-latin-wght.woff2", "wonderful/ops/wonderful-backup"):
+              "wonderful/static/fonts/figtree-latin-wght.woff2", "wonderful/ops/wonderful-backup",
+              "wonderful/providers.py", "wonderful/data/services.json", "wonderful/static/js/settings.js"):
         assert f in names, f
     assert not any("__pycache__" in n for n in names)
 

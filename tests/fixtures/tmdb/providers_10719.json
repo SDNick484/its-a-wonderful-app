@@ -1,0 +1,16 @@
+{
+  "id": 10719,
+  "results": {
+    "US": {
+      "link": "https://www.themoviedb.org/movie/10719-elf/watch?locale=US",
+      "flatrate": [{"logo_path": "/max.jpg", "provider_id": 1899, "provider_name": "Max", "display_priority": 1}],
+      "ads": [{"logo_path": "/roku.jpg", "provider_id": 207, "provider_name": "The Roku Channel", "display_priority": 12}],
+      "rent": [{"logo_path": "/apple.jpg", "provider_id": 2, "provider_name": "Apple TV", "display_priority": 4}],
+      "buy": [{"logo_path": "/apple.jpg", "provider_id": 2, "provider_name": "Apple TV", "display_priority": 4}]
+    },
+    "GB": {
+      "link": "https://www.themoviedb.org/movie/10719-elf/watch?locale=GB",
+      "flatrate": [{"logo_path": "/netflix.jpg", "provider_id": 8, "provider_name": "Netflix", "display_priority": 0}]
+    }
+  }
+}

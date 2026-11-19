@@ -9,6 +9,8 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /api/me           {"editor": "<who>"}
   /api/tmdb/search  TMDB search for the add sheet (?q=)
   /api/movies       GET the list, POST {tmdb_id, tmdb_type} to add; /api/movies/<id> GET, PUT, DELETE
+  /api/services     GET the streaming services, PUT {key, status} to subscribe, consider or ignore one
+  /api/movies/<id>/providers/refresh   POST: ask TMDB where it streams now
   /posters/<name>   the local poster and backdrop copies
   /hooks/tv         Home Assistant TV events (auth.hook_required: X-Hook-Secret)
   /static/<path>    CSS, ES modules, fonts: no auth (no data in them)
@@ -23,20 +25,20 @@ from flask import Flask, g, jsonify, make_response, request, send_from_directory
 from settings import APP_NAME, APP_DIR, _load_env, parse_hosts, PORT, DATA_DIR, DB_PATH, POSTER_DIR, ART_DIR  # noqa: F401
 from settings import CF_TEAM_DOMAIN, CF_AUD, ADMIN_EMAILS, LAN_EDIT, LAN_HOSTS, WONDERFUL_API_KEY, HA_HOOK_SECRET  # noqa: F401
 from settings import TMDB_READ_TOKEN, TMDB_API, TMDB_IMG, MATINEE_URL, MATINEE_API_KEY, HA_WEBHOOK_URL  # noqa: F401
-from settings import ANTHROPIC_API_KEY, AI_MODEL, AI_DAILY_CAP, UA  # noqa: F401
+from settings import ANTHROPIC_API_KEY, AI_MODEL, AI_DAILY_CAP, UA, SERVICES_FILE  # noqa: F401
 from common import RATING_ERROR, clean, make_err, validate_rating, round_half_up, today, now_iso  # noqa: F401
 from db import SCHEMA, SCHEMA_VERSION, connect, get_db, migrate, init_db  # noqa: F401
 from auth import KEY_IDENTITY, presented_key, lan_host, access_identity, cross_site  # noqa: F401
 from auth import editor_required, hook_required  # noqa: F401
 from tmdb import TmdbError  # noqa: F401
-import images, movies, tmdb  # noqa: F401  (route-free modules; use images.X, movies.X, tmdb.X)
+import images, movies, providers, tmdb  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
 
 
 # ===================================================================== split modules
 # app.py re-exports every name the sibling modules define, so `app.X` works everywhere. A write to app.X (monkeypatch
 # in the tests) also rebinds X in each split module that holds it, so their code reads the new value. Patch app.X,
 # never the sibling module. A new module goes here and in installer/build.sh's cp line.
-_SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "images", "movies")
+_SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "images", "movies", "providers")
 
 
 class _AppModule(types.ModuleType):
@@ -190,7 +192,10 @@ def api_tmdb_search():
 @app.get("/api/movies")
 @editor_required
 def api_movies():
-    return jsonify([movies.movie_out(r) for r in movies.list_rows(get_db())])
+    """The list. Each movie carries `where_to_watch` read from the providers cache: no TMDB call per card."""
+    con = get_db()
+    return jsonify([{**movies.movie_out(r), "where_to_watch": providers.where_to_watch(con, r["id"])}
+                    for r in movies.list_rows(con)])
 
 
 @app.post("/api/movies")
@@ -199,13 +204,29 @@ def api_movie_add():
     tmdb_id, tmdb_type = movies.parse_ref(request.get_json(silent=True))
     con = get_db()
     movie_id = movies.add_movie(con, tmdb_id, tmdb_type, g.editor)
-    return jsonify(movies.movie_out(movies.get_row(con, movie_id))), 201
+    try:
+        providers.get(con, movie_id)
+    except TmdbError as e:   # the movie is added; its providers arrive on the next refresh
+        app.logger.warning("watch providers for movie %s: %s", movie_id, e.message)
+    return jsonify({**movies.movie_out(movies.get_row(con, movie_id)), **providers.movie_providers(con, movie_id)}), 201
 
 
 @app.get("/api/movies/<int:movie_id>")
 @editor_required
 def api_movie(movie_id):
-    return jsonify(movies.movie_out(movies.get_row(get_db(), movie_id)))
+    """One movie, with where to watch from the cache and `providers_stale` (the page asks for a refresh when true)."""
+    con = get_db()
+    return jsonify({**movies.movie_out(movies.get_row(con, movie_id)), **providers.movie_providers(con, movie_id)})
+
+
+@app.post("/api/movies/<int:movie_id>/providers/refresh")
+@editor_required
+def api_providers_refresh(movie_id):
+    """Ask TMDB where this movie streams right now. A TMDB failure is a 502 and the old answer stays."""
+    con = get_db()
+    movies.get_row(con, movie_id)
+    providers.refresh(con, movie_id)
+    return jsonify(providers.movie_providers(con, movie_id))
 
 
 @app.put("/api/movies/<int:movie_id>")
@@ -221,6 +242,21 @@ def api_movie_update(movie_id):
 def api_movie_remove(movie_id):
     movies.remove_movie(get_db(), movie_id)
     return jsonify(ok=True)
+
+
+@app.get("/api/services")
+@editor_required
+def api_services():
+    return jsonify(providers.list_services(get_db()))
+
+
+@app.put("/api/services")
+@editor_required
+def api_service_status():
+    """{"key": "peacock", "status": "subscribed" | "considering" | "ignore"} -> the whole list."""
+    con = get_db()
+    providers.set_status(con, request.get_json(silent=True))
+    return jsonify(providers.list_services(con))
 
 
 @app.get("/posters/<name>")

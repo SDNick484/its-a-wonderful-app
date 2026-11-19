@@ -1,0 +1,12 @@
+[
+  {"key": "netflix", "name": "Netflix", "status": "subscribed", "tmdb_provider_ids": [8], "tv_source": "Netflix"},
+  {"key": "disney_plus", "name": "Disney+", "status": "subscribed", "tmdb_provider_ids": [337], "tv_source": "Disney+"},
+  {"key": "hulu", "name": "Hulu", "status": "subscribed", "tmdb_provider_ids": [15], "tv_source": "Hulu"},
+  {"key": "prime_video", "name": "Prime Video", "status": "subscribed", "tmdb_provider_ids": [9, 119, 2100], "tv_source": "Prime Video"},
+  {"key": "fandango_at_home", "name": "Fandango at Home", "status": "subscribed", "tmdb_provider_ids": [7, 332], "tv_source": "Fandango at Home"},
+  {"key": "youtube_tv", "name": "YouTube TV", "status": "subscribed", "tmdb_provider_ids": [], "tv_source": "YouTube TV"},
+  {"key": "hbo_max", "name": "HBO Max", "status": "considering", "tmdb_provider_ids": [1899, 384], "tv_source": "HBO Max"},
+  {"key": "peacock", "name": "Peacock", "status": "considering", "tmdb_provider_ids": [386, 387], "tv_source": "Peacock"},
+  {"key": "paramount_plus", "name": "Paramount+", "status": "considering", "tmdb_provider_ids": [531, 2303], "tv_source": "Paramount+"},
+  {"key": "apple_tv", "name": "Apple TV", "status": "considering", "tmdb_provider_ids": [350, 2], "tv_source": null}
+]

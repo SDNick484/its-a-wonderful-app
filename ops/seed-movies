@@ -91,6 +91,10 @@ def seed(con, entries, *, dry_run=False, resolve=False, say=print):
         except HTTPException:   # someone added it between the check above and the insert
             skipped += 1
             continue
+        try:   # where to watch comes with the movie (spec §7.1); a failure only means "Rent or buy" until a refresh
+            app.providers.get(con, movie_id)
+        except app.TmdbError as err:
+            say(f"  no watch providers yet for {e['title']}: {err.message}")
         if e.get("parent_note"):
             app.movies.update_movie(con, movie_id, {"parent_note": e["parent_note"]})
         row = app.movies.get_row(con, movie_id)

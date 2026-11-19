@@ -20,6 +20,20 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   parents, and **Remove from our list** (asks first; its ratings and viewings go with it). Posters are downloaded
   once to `$DATA_DIR/posters/`; a missing poster shows a titled placeholder. Adding needs `TMDB_READ_TOKEN`.
   API: `GET /api/tmdb/search?q=`, `GET`/`POST /api/movies`, `GET`/`PUT`/`DELETE /api/movies/<id>`.
+- **Where to watch.** Every card carries one line (green when it is ready to watch tonight) and the detail view lists
+  them all, best first: on a service you subscribe to ("On Netflix"), free ("Free with ads on The Roku Channel"; free
+  counts as ready), on a service you are only considering ("On Peacock (you don't have it)"), then "Rent or buy".
+  The data is TMDB's US watch providers (JustWatch), saved when a movie is added and refreshed when older than 7
+  days or with **Check again** on the detail view. A provider the app has never heard of shows under its own name.
+  A title with no US providers reads "Rent or buy". The seed script also fetches them. Owned discs from Matinee come
+  later.
+- **Settings → Subscriptions** (the gear in the header). Each streaming service is **Subscribed**, **Considering** or
+  **Ignore**, and every card follows at once. Starting statuses: Netflix, Disney+, Hulu, Prime Video, Fandango at
+  Home and YouTube TV subscribed; HBO Max, Peacock, Paramount+ and Apple TV considering. The list, each service's
+  TMDB provider ids and the TV input name it uses (`tv_source`, for the Family Room TV) live in
+  `data/services.json`; the database keeps your statuses, and a restart picks up edits to the rest.
+  API: `GET`/`PUT /api/services` (`{"key": "peacock", "status": "subscribed"}`),
+  `POST /api/movies/<id>/providers/refresh`.
 - **The starting list.** `data/seed-movies.json` holds the 41 titles from spec §17, with their parent notes and
   certifications but no TMDB ids yet. `ops/seed-movies` adds the ones that have an id and skips the rest; see
   [The starting list](#the-starting-list).

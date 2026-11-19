@@ -5,8 +5,8 @@ cd "$(dirname "$0")/.."
 STAGE=$(mktemp -d /tmp/wonderful-stage.XXXXXX 2>/dev/null || mktemp -d -t wonderful-stage.XXXXXX 2>/dev/null || mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 mkdir -p dist "$STAGE/wonderful"
-cp -r app.py settings.py common.py db.py auth.py tmdb.py images.py movies.py README.md .env.example ops static "$STAGE/wonderful/"
-mkdir -p "$STAGE/wonderful/data" && cp data/seed-movies.json "$STAGE/wonderful/data/"
+cp -r app.py settings.py common.py db.py auth.py tmdb.py images.py movies.py providers.py README.md .env.example ops static "$STAGE/wonderful/"
+mkdir -p "$STAGE/wonderful/data" && cp data/seed-movies.json data/services.json "$STAGE/wonderful/data/"
 
 # Clean cache directories portably (avoid find -exec + which BusyBox find can reject)
 find "$STAGE" \( -name __pycache__ -o -name .pytest_cache \) -exec rm -rf {} \; 2>/dev/null || true

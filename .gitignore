@@ -1,5 +1,6 @@
 /data/*
 !/data/seed-movies.json
+!/data/services.json
 dist/
 __pycache__/
 .pytest_cache/
