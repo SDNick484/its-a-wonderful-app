@@ -4,26 +4,33 @@ import { api, APP_NAME, toast } from "./core.js";
 import { openAddSheet } from "./add.js";
 import { showDetail } from "./detail.js";
 import { loadMovies, watchPosters } from "./grid.js";
+import { showSettings } from "./settings.js";
 
 let gridScroll = 0;
 
-// #/ is the grid, #/m/<id> one movie. The grid keeps its scroll position while a movie is open.
+// #/ is the grid, #/m/<id> one movie, #/settings the settings. The grid keeps its scroll position while another
+// screen is open.
 function route() {
   const grid = document.getElementById("grid-view");
   const detail = document.getElementById("detail-view");
+  const settings = document.getElementById("settings-view");
   const m = location.hash.match(/^#\/m\/(\d+)$/);
-  if (m) {
+  const other = m || location.hash === "#/settings";
+  if (other) {
     if (!grid.hidden) gridScroll = window.scrollY;
     grid.hidden = true;
-    detail.hidden = false;
+    detail.hidden = !m;
+    settings.hidden = !!m;
     window.scrollTo(0, 0);
-    showDetail(Number(m[1]));
+    if (m) showDetail(Number(m[1]));
+    else showSettings();
   } else {
-    const wasDetail = !detail.hidden;
+    const wasOther = grid.hidden;
     detail.hidden = true;
+    settings.hidden = true;
     grid.hidden = false;
     document.title = APP_NAME;
-    if (wasDetail) window.scrollTo(0, gridScroll);
+    if (wasOther) window.scrollTo(0, gridScroll);
   }
 }
 

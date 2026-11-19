@@ -22,10 +22,12 @@ function watchPosters(root) {
 
 function cardHtml(m) {
   const label = m.year ? `${m.title} (${m.year})` : m.title;
+  const first = (m.where_to_watch || [])[0];   // the best place to watch it (spec §7.2)
   return `<a class="movie-card" href="#/m/${m.id}" aria-label="${esc(label)}">`
     + `<div class="poster-wrap">${posterHtml(m)}<span class="rating-slot"></span></div>`
     + `<div class="card-title">${esc(m.title)}</div>`
     + (m.year ? `<div class="card-year">${m.year}</div>` : "")
+    + (first ? `<div class="card-where" data-kind="${esc(first.kind)}">${esc(first.label)}</div>` : "")
     + `</a>`;
 }
 
@@ -50,4 +52,4 @@ async function loadMovies() {
   if (failed && !state.movies.length) document.getElementById("grid-empty").textContent = "Couldn't load our list. Reload the page to try again.";
 }
 
-export { loadMovies, posterHtml, watchPosters };
+export { loadMovies, posterHtml, renderGrid, watchPosters };

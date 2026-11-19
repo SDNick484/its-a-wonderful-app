@@ -52,6 +52,7 @@ DATA_DIR = Path(os.environ.get("DATA_DIR") or APP_DIR / "data")
 DB_PATH = DATA_DIR / "wonderful.db"
 POSTER_DIR = DATA_DIR / "posters"   # local poster and backdrop copies (TMDB art)
 ART_DIR = DATA_DIR / "art"          # theme art prepared on the host; ops/wonderful-backup keeps both folders
+SERVICES_FILE = APP_DIR / "data" / "services.json"   # the streaming services seeded into the database (spec §6)
 
 # ---- access (auth.py)
 # bare host: tolerate a pasted "https://team.cloudflareaccess.com/"

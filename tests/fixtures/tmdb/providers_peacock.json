@@ -1,0 +1,9 @@
+{
+  "id": 990001,
+  "results": {
+    "US": {
+      "link": "https://www.themoviedb.org/movie/990001-the-peacock-parade/watch?locale=US",
+      "flatrate": [{"logo_path": "/peacock.jpg", "provider_id": 386, "provider_name": "Peacock", "display_priority": 2}]
+    }
+  }
+}

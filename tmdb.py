@@ -9,6 +9,8 @@ TIMEOUT = 8
 MAX_CAST = 8
 ANIMATION_GENRE = 16
 TYPES = ("movie", "tv")
+PROVIDER_TIERS = ("flatrate", "free", "ads", "rent", "buy")
+PROVIDER_REGION = "US"
 
 
 class TmdbError(Exception):
@@ -134,3 +136,26 @@ def details(tmdb_id, tmdb_type="movie"):
         "overview": clean(d.get("overview")), "poster_path": clean(d.get("poster_path")),
         "backdrop_path": clean(d.get("backdrop_path")),
     }
+
+
+def watch_providers(tmdb_id, tmdb_type="movie"):
+    """Who streams, rents or sells one title in the US (spec §7.2): {link, flatrate, free, ads, rent, buy}. `link` is
+    TMDB's watch page (the JustWatch attribution points there) or None; each tier is a list of {id, name} in TMDB's
+    display order. A title with no US entry gives every tier empty: that is an answer, not an error."""
+    if tmdb_type not in TYPES:
+        raise ValueError(f"tmdb_type must be one of {TYPES}")
+    d = _get(f"/{tmdb_type}/{int(tmdb_id)}/watch/providers")
+    region = (d.get("results") or {}).get(PROVIDER_REGION)
+    region = region if isinstance(region, dict) else {}
+    out = {"link": clean(region.get("link"))}
+    for tier in PROVIDER_TIERS:
+        found = []
+        for p in region.get(tier) or []:
+            if not isinstance(p, dict) or isinstance(p.get("provider_id"), bool) or not isinstance(p.get("provider_id"), int):
+                continue
+            name = clean(p.get("provider_name"))
+            if name:
+                prio = p.get("display_priority")
+                found.append((prio if isinstance(prio, int) else 999, {"id": p["provider_id"], "name": name}))
+        out[tier] = [item for _prio, item in sorted(found, key=lambda t: t[0])]
+    return out

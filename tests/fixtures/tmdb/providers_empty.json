@@ -1,0 +1,9 @@
+{
+  "id": 900001,
+  "results": {
+    "CA": {
+      "link": "https://www.themoviedb.org/movie/900001-the-quiet-reindeer/watch?locale=CA",
+      "flatrate": [{"logo_path": "/netflix.jpg", "provider_id": 8, "provider_name": "Netflix", "display_priority": 0}]
+    }
+  }
+}

@@ -7,6 +7,7 @@ import sqlite3
 
 from flask import g, has_app_context
 
+import providers
 from settings import DATA_DIR, DB_PATH, POSTER_DIR, ART_DIR
 
 SCHEMA_VERSION = "1"
@@ -132,8 +133,10 @@ def get_db():
 
 def migrate(con):
     """Bring any earlier database (or an empty file) to SCHEMA_VERSION. Idempotent: safe on every start.
-    v1 is the first version, so it only creates what is missing; later versions add their steps below."""
+    v1 is the first version, so it only creates what is missing; later versions add their steps below. The streaming
+    services (data/services.json) are seeded here, so a service added to the file appears on the next start."""
     con.executescript(SCHEMA)
+    providers.seed_services(con)
     con.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('schema', ?)", (SCHEMA_VERSION,))
     con.commit()
 

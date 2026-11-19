@@ -486,3 +486,99 @@ main {
 .site-footer p + p {
   margin-top: var(--s2);
 }
+
+/* ---------------------------------------------------------------- where to watch and settings */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex: none;
+}
+#settings-btn {
+  font-size: 1.5rem;
+}
+.card-where {
+  margin-top: var(--s1);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink-2);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.card-where[data-kind="owned"], .card-where[data-kind="subscribed"], .card-where[data-kind="free"],
+.where-line[data-kind="owned"], .where-line[data-kind="subscribed"], .where-line[data-kind="free"] {
+  color: var(--p-user1);   /* ready to watch */
+}
+.where-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.where-line {
+  padding: var(--s1) 0;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.where-credit {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s3);
+  margin-top: var(--s2);
+  font-size: var(--fs-xs);
+  color: var(--ink-3);
+}
+.where-credit a {
+  color: var(--ink-2);
+  text-decoration: underline;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+}
+.settings-hint {
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--s3);
+}
+.svc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.svc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.svc-name {
+  font-weight: 700;
+}
+.seg {
+  display: flex;
+  gap: var(--s1);
+}
+.seg-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0 var(--s2);
+  border: 1px solid var(--field-border);
+  border-radius: var(--r-card);
+  background: var(--raised);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.seg-btn[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
+}

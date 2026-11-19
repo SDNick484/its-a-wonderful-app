@@ -17,7 +17,7 @@ FIXTURES = Path(__file__).parent / "fixtures"   # tmdb/, matinee/, anthropic/: r
 
 # The SPA's ES modules in static/js/. tests/test_js_modules.py checks this list is complete.
 JS_DIR = ROOT / "static" / "js"
-JS_MODULES = ["add.js", "core.js", "detail.js", "grid.js", "main.js"]
+JS_MODULES = ["add.js", "core.js", "detail.js", "grid.js", "main.js", "settings.js"]
 
 
 def _no_network(*a, **kw):
@@ -84,10 +84,14 @@ TMDB_FIXTURES = FIXTURES / "tmdb"
 class FakeTmdb:
     """Stands in for urllib.request.urlopen: answers TMDB API calls from tests/fixtures/tmdb/ and poster downloads
     from poster.jpg, and records what was asked. movie_<id>.json and tv_<id>.json hold the details, search_<query
-    letters>.json a search (an unknown query gets search_no_results.json); any other title is a 404."""
+    letters>.json a search (an unknown query gets search_no_results.json); any other title is a 404. Watch providers
+    come from the file `provider_files` names for a TMDB id (a test may add to it); any other id is a 404."""
 
     def __init__(self):
         self.api, self.images = [], []
+        self.provider_files = {10719: "providers_10719.json", 508439: "providers_klaus.json",
+                               900001: "providers_empty.json", 990001: "providers_peacock.json",
+                               990002: "providers_unknown.json"}
 
     def __call__(self, req, timeout=None):
         url = urllib.parse.urlparse(req.full_url)
@@ -101,6 +105,11 @@ class FakeTmdb:
             slug = re.sub(r"[^a-z0-9]", "", urllib.parse.parse_qs(url.query)["query"][0].lower())
             path = TMDB_FIXTURES / f"search_{slug}.json"
             path = path if path.is_file() else TMDB_FIXTURES / "search_no_results.json"
+        elif re.fullmatch(r"/3/(movie|tv)/\d+/watch/providers", url.path):
+            name = self.provider_files.get(int(url.path.split("/")[3]))
+            path = TMDB_FIXTURES / name if name else None
+            if path is None or not path.is_file():
+                raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
         else:
             m = re.fullmatch(r"/3/(movie|tv)/(\d+)", url.path)
             path = TMDB_FIXTURES / f"{m.group(1)}_{m.group(2)}.json" if m else None
