@@ -1,0 +1,31 @@
+/* Toy store (spec §14.3). static/js/theme.js loads this file when the theme is on; it is a theme's whole look:
+   its art, its glow and its tuning. To change a scene's picture, replace background.webp (portrait phone, 1080 x 2340)
+   and background-wide.webp (landscape, 2340 x 1080) with the same names: nothing else needs to change. The scrim's
+   colour may be tinted here; its floor (--scrim-min, style.css) must not be touched: a test holds it. */
+#scene {
+  background-color: #1b1838;
+  background-image: url("background.webp");
+  --scrim-rgb: 14 10 30;
+  --fx-x: 50%;          /* where theme.js draws sparks, as a share of the screen */
+  --fx-y: 50%;
+}
+@media (orientation: landscape) {
+  #scene {
+    background-image: url("background-wide.webp");
+    --fx-y: 50%;
+  }
+}
+
+/* Window lights: strands down both sides twinkle in four colours; --twinkle is the length of one swell. */
+html[data-theme="toystore"] #scene {
+  --twinkle: 2.2s;
+  --bulb-1: #ff6b5f;
+  --bulb-2: #ffd166;
+  --bulb-3: #4fd1c5;
+  --bulb-4: #ff8fc5;
+}
+.scene-glow {
+  opacity: 1;
+  background: radial-gradient(ellipse 80% 38% at 50% 38%, rgb(130 120 255 / .13), transparent 72%);
+  animation: breathe 5s ease-in-out infinite alternate;
+}

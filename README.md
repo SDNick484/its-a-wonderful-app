@@ -102,6 +102,21 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   `data/services.json`; the database keeps your statuses, and a restart picks up edits to the rest.
   API: `GET`/`PUT /api/services` (`{"key": "peacock", "status": "subscribed"}`),
   `POST /api/movies/<id>/providers/refresh`.
+- **Advent themes.** The app wears a scene for each week of Advent, by the host's local date (`TZ`, never UTC): the
+  fireplace from the first Sunday of Advent, the toy store the Sunday after, the Christmas tree the Sunday after that,
+  and Santa's sleigh from the fourth Sunday through January 6 (2026: Nov 29, Dec 6, Dec 13, Dec 20 to Jan 6). The
+  rest of the year is plain, light or dark. Each scene is a picture behind a dark scrim, so text stays readable
+  (at least 4.5:1) even over a pale drawing, plus motion on top: flames that flicker and rising sparks, twinkling window
+  lights, tree lights that twinkle and drift through colours, a sleigh that crosses the moon every 45 to 90 seconds, and
+  gentle snow in all four. Motion stops under the phone's reduced-motion setting and pauses while the tab is hidden.
+  **Settings → Advent themes** turns themes on or off, **Light or dark** picks the plain look (Light, Dark, or System,
+  which follows the phone; a theme is always dark), and **Preview themes** shows any scene on that phone until the app
+  is closed. Themes on/off and light/dark are saved in the database for the whole household. A theme is a folder,
+  `static/themes/<key>/` (`fireplace`, `toystore`, `tree`, `sleigh`), holding `background.webp` (portrait, 1080 × 2340),
+  `background-wide.webp` (landscape, 2340 × 1080) and `theme.css` (the tuning, e.g. `--flicker` and `--twinkle`); the
+  pictures are flat placeholders until the drawings arrive, and replacing the two files is all it takes.
+  API: `GET /api/theme` (`{"theme": "fireplace" | "toystore" | "tree" | "sleigh" | null, "until": "2027-01-06"}`),
+  `GET`/`PUT /api/theme/prefs` (`{"enabled": true, "mode": "system"}`).
 - **The starting list.** `data/seed-movies.json` holds the 41 titles from spec §17, with their parent notes and
   certifications but no TMDB ids yet. `ops/seed-movies` adds the ones that have an id and skips the rest; see
   [The starting list](#the-starting-list).

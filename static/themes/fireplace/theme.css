@@ -1,0 +1,27 @@
+/* Fireplace (spec §14.3). static/js/theme.js loads this file when the theme is on; it is a theme's whole look:
+   its art, its glow and its tuning. To change a scene's picture, replace background.webp (portrait phone, 1080 x 2340)
+   and background-wide.webp (landscape, 2340 x 1080) with the same names: nothing else needs to change. The scrim's
+   colour may be tinted here; its floor (--scrim-min, style.css) must not be touched: a test holds it. */
+#scene {
+  background-color: #2b1a14;
+  background-image: url("background.webp");
+  --scrim-rgb: 20 10 6;
+  --fx-x: 50%;          /* where theme.js draws sparks, as a share of the screen */
+  --fx-y: 75%;
+  --flicker: 2.4s;
+}
+@media (orientation: landscape) {
+  #scene {
+    background-image: url("background-wide.webp");
+    --fx-y: 55%;
+  }
+}
+
+/* Flames: a warm glow behind the hearth that flickers unevenly. --flicker is the length of one round; raise it if the
+   flames feel too fast. Rising sparks and snow are drawn on the canvas by theme.js. */
+.scene-glow {
+  opacity: 1;
+  background: radial-gradient(ellipse 70% 22% at var(--fx-x) var(--fx-y), rgb(255 140 50 / .16), transparent 72%);
+  transform-origin: var(--fx-x) var(--fx-y);
+  animation: flicker var(--flicker, 2.4s) ease-in-out infinite;
+}

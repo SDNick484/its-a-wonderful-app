@@ -39,6 +39,13 @@ def server(tmp_path, monkeypatch):
     from werkzeug.serving import make_server
     core = _isolate(tmp_path, monkeypatch)
     monkeypatch.setattr(core, "LAN_EDIT", True)
+    # These tests were written against the plain dark look: pin that in the database (what the settings screen does),
+    # so a run in December does not put a theme behind them and a light phone does not turn them light. The theme
+    # tests (test_theme_ui.py) set it back themselves.
+    with core.app.app_context():
+        con = core.get_db()
+        con.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('theme_enabled', '0'), ('theme_mode', 'dark')")
+        con.commit()
     srv = make_server("127.0.0.1", 0, core.app, threaded=True)
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()

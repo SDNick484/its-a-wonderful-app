@@ -37,7 +37,10 @@ copies a write to `app.X` into each module that holds `X`. A new module goes in 
    `HA_HOOK_SECRET`) and `/static/`. `tests/test_auth.py` walks every rule in `app.url_map`; a new route must pass it.
 6. **Phone-first.** Android Chrome at 412 px is the primary screen: at least 3 poster columns and no horizontal
    scroll at 412 px and 360 px, tap targets ≥ 44 px, text contrast ≥ 4.5:1 (WCAG AA) including over themes. A UI
-   change gets a Playwright check in the smoke tests (`tests/test_ui_*.py`, run by the ui-smoke job).
+   change gets a Playwright check in the smoke tests (`tests/test_ui_*.py`, run by the ui-smoke job). Colours in
+   `style.css` are `light-dark()` pairs (themes are always dark); a theme's `theme.css` never changes the scrim's
+   floor (`--scrim-min`), and a new text colour is added to `TOKENS` in `tests/test_theme_ui.py`, which checks it over
+   a white drawing.
 7. **Settings.** Every new setting goes in `.env.example` (with a comment line above it), in `settings.py`, in the
    installer's `add_setting` list (add missing keys, never overwrite), and in the init script's `export` line
    (`tests/test_installer_static.py` checks all four). Anything new in `$DATA_DIR` must be covered by

@@ -23,6 +23,8 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /api/services     GET the streaming services, PUT {key, status} to subscribe, consider or ignore one
   /api/movies/<id>/providers/refresh   POST: ask TMDB where it streams now
   (ownership and shelf come from Matinee: asked on add, on the detail view when over a day old, and nightly)
+  /api/theme        GET today's Advent theme {"theme": "fireplace"|"toystore"|"tree"|"sleigh"|null, "until": "YYYY-MM-DD"}
+  /api/theme/prefs  GET / PUT {"enabled"?, "mode"?: "system"|"light"|"dark"}: Themes on or off, the plain look
   /posters/<name>   the local poster and backdrop copies
   /hooks/tv         Home Assistant TV events {"state", "source", "at"}: open and close the night's TV session, which
                     sets the finish guess (auth.hook_required: X-Hook-Secret; docs/home-assistant.md)
@@ -44,7 +46,7 @@ from db import SCHEMA, SCHEMA_VERSION, connect, get_db, migrate, init_db  # noqa
 from auth import KEY_IDENTITY, presented_key, lan_host, access_identity, cross_site  # noqa: F401
 from auth import editor_required, hook_required  # noqa: F401
 from tmdb import TmdbError  # noqa: F401
-import ai, ha, images, matinee, movies, people, providers, randomizer, ratings, search, sync, tmdb, viewings  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
+import ai, ha, images, matinee, movies, people, providers, randomizer, ratings, search, sync, themes, tmdb, viewings  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
 
 
 # ===================================================================== split modules
@@ -52,7 +54,7 @@ import ai, ha, images, matinee, movies, people, providers, randomizer, ratings, 
 # in the tests) also rebinds X in each split module that holds it, so their code reads the new value. Patch app.X,
 # never the sibling module. A new module goes here and in installer/build.sh's cp line.
 _SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "ai", "images", "matinee", "movies", "people", "providers", "randomizer",
-                  "ratings", "search", "sync", "ha", "viewings")
+                  "ratings", "search", "sync", "ha", "viewings", "themes")
 
 
 class _AppModule(types.ModuleType):
@@ -429,6 +431,26 @@ def api_service_status():
     con = get_db()
     providers.set_status(con, request.get_json(silent=True))
     return jsonify(providers.list_services(con))
+
+
+@app.get("/api/theme")
+@editor_required
+def api_theme():
+    """Today's theme by the host's local date (TZ, never UTC), and the last day that answer holds."""
+    return jsonify(themes.current(today()))
+
+
+@app.get("/api/theme/prefs")
+@editor_required
+def api_theme_prefs():
+    return jsonify(themes.get_prefs(get_db()))
+
+
+@app.put("/api/theme/prefs")
+@editor_required
+def api_set_theme_prefs():
+    """{"enabled": true | false, "mode": "system" | "light" | "dark"}, either one: the household's choice."""
+    return jsonify(themes.set_prefs(get_db(), request.get_json(silent=True)))
 
 
 @app.get("/posters/<name>")

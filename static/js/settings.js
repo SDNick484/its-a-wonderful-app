@@ -1,9 +1,10 @@
 // It's a Wonderful App: the settings screen. Subscriptions: each streaming service is Subscribed, Considering or Ignore,
 // and where-to-watch lines everywhere follow it (spec §7.2, decision 15). People: who rates (spec §8.4), copied from
-// Matinee or added here.
+// Matinee or added here. Look: Advent themes on or off, Light or Dark, and a preview of each theme (spec §14.2).
 import { api, esc, toast } from "./core.js";
 import { loadMovies } from "./grid.js";
 import { dotHtml } from "./rating.js";
+import { THEME_NAMES, previewTheme, savePrefs, themeInfo } from "./theme.js";
 
 const CHOICES = [["subscribed", "Subscribed"], ["considering", "Considering"], ["ignore", "Ignore"]];
 
@@ -33,8 +34,72 @@ function peopleHtml(people) {
     + `<button type="submit" class="btn">Add</button></form>`;
 }
 
+const MODES = [["light", "Light"], ["dark", "Dark"], ["system", "System"]];
+const PREVIEWS = [[null, "Today's"], ...Object.entries(THEME_NAMES), ["plain", "No theme"]];
+
+function segHtml(label, name, choices, current) {
+  const buttons = choices.map(([value, text]) =>
+    `<button type="button" class="seg-btn" data-${name}="${esc(String(value))}" aria-pressed="${value === current}">${esc(text)}</button>`).join("");
+  return `<div class="seg" role="group" aria-label="${esc(label)}">${buttons}</div>`;
+}
+
+// "January 6" from "2027-01-06" (a plain calendar date, so no time zone shifts it).
+function longDate(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "long", day: "numeric" });
+}
+
+function themeHint(info) {
+  if (!info.today) return "Couldn't ask what today's theme is.";
+  const name = THEME_NAMES[info.today.theme];
+  if (name) return `Today it's the ${name.toLowerCase()} scene, through ${longDate(info.today.until)}.`;
+  const [y, m, d] = info.today.until.split("-").map(Number);
+  return `No theme today. The next one comes on ${new Date(y, m - 1, d + 1).toLocaleDateString(undefined, { month: "long", day: "numeric" })}.`;
+}
+
+function lookHtml() {
+  const info = themeInfo();
+  return `<h3 class="detail-label">Advent themes</h3>`
+    + `<p class="settings-hint" id="theme-hint">${esc(themeHint(info))}</p>`
+    + segHtml("Advent themes", "enabled", [[true, "On"], [false, "Off"]], info.prefs.enabled)
+    + `<h3 class="detail-label">Light or dark</h3>`
+    + `<p class="settings-hint">For the rest of the year. The Advent scenes are always dark.</p>`
+    + segHtml("Light or dark", "mode", MODES, info.prefs.mode)
+    + `<h3 class="detail-label">Preview themes</h3>`
+    + `<p class="settings-hint">See a scene on this phone. It goes back to normal when you close the app.</p>`
+    + `<div class="chips" role="group" aria-label="Preview themes">${PREVIEWS.map(([value, text]) =>
+      `<button type="button" class="chip" data-preview="${esc(String(value))}" aria-pressed="${(value ?? null) === info.preview}">${esc(text)}</button>`).join("")}</div>`;
+}
+
+// Redraws the Look section, and puts keyboard focus back on the button that was just pressed.
+function showLook(pressed) {
+  const box = document.getElementById("look-box");
+  if (!box) return;
+  box.innerHTML = lookHtml();
+  if (pressed) box.querySelector(`[${pressed.name}="${pressed.value}"]`)?.focus();
+}
+
+async function lookClick(e) {
+  const pref = e.target.closest("[data-enabled], [data-mode]");
+  if (pref) {
+    const isOnOff = pref.dataset.enabled !== undefined;
+    try {
+      await savePrefs(isOnOff ? { enabled: pref.dataset.enabled === "true" } : { mode: pref.dataset.mode });
+    } catch (err) {
+      toast(`Couldn't save: ${err.message}`);
+    }
+    return showLook(isOnOff ? { name: "data-enabled", value: pref.dataset.enabled } : { name: "data-mode", value: pref.dataset.mode });
+  }
+  const preview = e.target.closest("[data-preview]");
+  if (preview) {
+    previewTheme(preview.dataset.preview === "null" ? null : preview.dataset.preview);
+    showLook({ name: "data-preview", value: preview.dataset.preview });
+  }
+}
+
 function settingsHtml(services) {
   return `<h2 class="section-title">Settings</h2>`
+    + `<div id="look-box" class="look-box"></div>`
     + `<h3 class="detail-label">Subscriptions</h3>`
     + `<p class="settings-hint">Subscribed services make a movie ready to watch. Considering ones show "(you don't have it)". `
     + `Ignore hides a service everywhere.</p>`
@@ -103,6 +168,8 @@ async function showSettings() {
     return;
   }
   box.innerHTML = settingsHtml(services);
+  showLook();
+  document.getElementById("look-box").addEventListener("click", lookClick);
   box.querySelector(".svc-list").addEventListener("click", e => {
     const b = e.target.closest(".seg-btn");
     if (b) setStatus(b.closest(".svc"), b);
