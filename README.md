@@ -102,6 +102,11 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   `data/services.json`; the database keeps your statuses, and a restart picks up edits to the rest.
   API: `GET`/`PUT /api/services` (`{"key": "peacock", "status": "subscribed"}`),
   `POST /api/movies/<id>/providers/refresh`.
+- **Worth a Month?** For each service you're considering, the movies on our list it would add: not owned in Matinee,
+  not on a service you have (or free anywhere), and not watched this year. Shown as a card on the home screen in
+  November and December, and always in Settings, most movies first; a service adding nothing says why. It only reads
+  the cache, so it works while TMDB or Matinee is down. API: `GET /api/worth`
+  (`{"year", "season", "services": [{"service", "name", "movies", "count", "reason"}]}`).
 - **Advent themes.** The app wears a scene for each week of Advent, by the host's local date (`TZ`, never UTC): the
   fireplace from the first Sunday of Advent, the toy store the Sunday after, the Christmas tree the Sunday after that,
   and Santa's sleigh from the fourth Sunday through January 6 (2026: Nov 29, Dec 6, Dec 13, Dec 20 to Jan 6). The

@@ -9,6 +9,7 @@ import { wireSearch } from "./search.js";
 import { showSettings } from "./settings.js";
 import { wireSurprise } from "./surprise.js";
 import { startTheme } from "./theme.js";
+import { loadWorth } from "./worth.js";
 
 let gridScroll = 0;
 
@@ -37,6 +38,7 @@ function route() {
     if (wasOther) {
       window.scrollTo(0, gridScroll);
       loadContinue();   // a Watch tonight or a finish on the detail view shows on the row
+      loadWorth();      // and a finish changes what the family hasn't watched this year
     }
   }
 }
@@ -57,6 +59,7 @@ async function start() {
   add.addEventListener("click", () => openAddSheet(add));
   window.addEventListener("hashchange", route);
   await Promise.all([loadMovies(), loadContinue()]);
+  await loadWorth();   // after the list: its posters come from the loaded movies
   route();
   checkPrompt();   // "Did you finish …?" the first time the app opens after the TV stopped a movie
 }
