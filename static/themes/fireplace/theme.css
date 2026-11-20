@@ -6,14 +6,15 @@
   background-color: #2b1a14;
   background-image: url("background.webp");
   --scrim-rgb: 20 10 6;
-  --fx-x: 50%;          /* where theme.js draws sparks, as a share of the screen */
-  --fx-y: 75%;
+  --fx-x: 38%;          /* where theme.js draws sparks, as a share of the screen: the fire in the drawing */
+  --fx-y: 86%;
   --flicker: 2.4s;
 }
 @media (orientation: landscape) {
   #scene {
     background-image: url("background-wide.webp");
-    --fx-y: 55%;
+    --fx-x: 44%;
+    --fx-y: 72%;
   }
 }
 

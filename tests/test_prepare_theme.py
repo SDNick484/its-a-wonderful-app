@@ -1,7 +1,9 @@
 """The art pipeline (spec §14.4, plan Task 14): ops/prepare-theme turns a photo of a drawing into a theme's two
 pictures. The photo is generated here with Pillow (a rotated, GPS-tagged JPEG), so no binary fixture is needed."""
 import importlib.machinery
+import io
 import importlib.util
+import random
 from pathlib import Path
 
 import pytest
@@ -80,3 +82,41 @@ def test_unreadable_photo_is_refused_and_keeps_the_old_pictures(tmp_path, themes
     assert prepare_theme.main(["fireplace", str(bad)], themes_dir=themes) == 1
     assert (themes / "fireplace" / "background.webp").read_bytes() == b"old picture"
 
+
+
+def test_wide_y_moves_the_landscape_crop_and_leaves_the_portrait_alone(tmp_path, themes):
+    """The drawing's red top third is cut away by a middle crop; --wide-y 0 keeps the top of the drawing instead."""
+    photo = drawing_photo(tmp_path / "drawing.jpg")
+    _, wide = prepare_theme.prepare("fireplace", photo, themes)
+    with Image.open(wide) as img:
+        assert img.getpixel((1170, 40))[2] > 200                     # middle crop: blue at the top edge
+    portrait, wide = prepare_theme.prepare("fireplace", photo, themes, wide_y=0.0)
+    with Image.open(wide) as img:
+        assert img.getpixel((1170, 40))[0] > 200                     # top crop: the red top of the drawing
+    with Image.open(portrait) as img:
+        assert img.getpixel((540, 100))[0] > 200 and img.getpixel((540, 2240))[2] > 200
+    assert prepare_theme.main(["fireplace", str(photo), "--wide-y", "1"], themes_dir=themes) == 0
+    with Image.open(wide) as img:
+        assert img.getpixel((1170, 1040))[2] > 200                   # bottom crop: blue
+
+
+@pytest.mark.parametrize("value", ["-0.1", "1.5", "abc"])
+def test_wide_y_out_of_range_is_refused(tmp_path, themes, value):
+    photo = drawing_photo(tmp_path / "drawing.jpg")
+    with pytest.raises(SystemExit) as err:
+        prepare_theme.main(["fireplace", str(photo), "--wide-y", value], themes_dir=themes)
+    assert err.value.code == 2
+    assert not list(themes.rglob("*.webp"))
+
+
+def test_a_grainy_drawing_is_squeezed_under_the_budget():
+    """Pencil grain: a fine random texture. Quality 82 is over a small budget; the steps bring it under."""
+    rng = random.Random(7)
+    img = Image.new("RGB", (540, 1170))
+    img.putdata([(200 + rng.randint(-40, 40), 180 + rng.randint(-40, 40), 220) for _ in range(540 * 1170)])
+    first = prepare_theme.encode(img, budget=10**9)
+    assert len(prepare_theme.encode(img, budget=len(first))) < len(first)
+    small = prepare_theme.encode(img, budget=len(first) // 3)
+    assert len(small) < len(first) // 3
+    with Image.open(io.BytesIO(small)) as out:
+        assert out.size == (540, 1170) and out.format == "WEBP"

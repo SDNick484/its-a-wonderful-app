@@ -6,13 +6,14 @@
   background-color: #10261f;
   background-image: url("background.webp");
   --scrim-rgb: 6 18 14;
-  --fx-x: 50%;          /* where theme.js draws sparks, as a share of the screen */
-  --fx-y: 50%;
+  --fx-x: 78%;          /* the middle of the tree in the drawing; its glow sits here */
+  --fx-y: 74%;
 }
 @media (orientation: landscape) {
   #scene {
     background-image: url("background-wide.webp");
-    --fx-y: 50%;
+    --fx-x: 68%;
+    --fx-y: 55%;
   }
 }
 
@@ -30,6 +31,6 @@ html[data-theme="tree"] .scene-lights {
 }
 .scene-glow {
   opacity: 1;
-  background: radial-gradient(ellipse 60% 36% at 50% 52%, rgb(255 200 110 / .12), transparent 72%);
+  background: radial-gradient(ellipse 60% 36% at var(--fx-x) var(--fx-y), rgb(255 200 110 / .12), transparent 72%);
   animation: breathe 4s ease-in-out infinite alternate;
 }

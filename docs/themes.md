@@ -11,7 +11,7 @@ There are four pictures. Each one has a short name:
 | `tree` | From the third Sunday of Advent |
 | `sleigh` | From the fourth Sunday of Advent, until January 6 |
 
-Right now every picture is a plain colour. Your drawings will replace them.
+All four pictures are drawn now. To change one, follow the steps again with a new drawing.
 
 ## What you need
 
@@ -55,6 +55,21 @@ background. Save the cleaned photo in `art/originals` and do step 4 with that on
   `background-wide.webp` (2340 × 1080, the computer). It crops from the middle, applies the photo's rotation, and
   removes the photo's location and camera data. It needs Pillow: `py3-pillow` on the host, `pip install Pillow` on a
   computer.
+- The computer picture is wide, so it only has room for about a third of a tall drawing. `--wide-y` picks which
+  third: 0 the top, 0.5 the middle (the default), 1 the bottom. The current art was made with:
+
+  | Theme | Command |
+  |-------|---------|
+  | `fireplace` | `ops/prepare-theme fireplace art/originals/fireplace.jpg --wide-y 1` (the fire) |
+  | `toystore` | `ops/prepare-theme toystore art/originals/toystore.jpg --wide-y 0.3` (the shelves and the tree) |
+  | `tree` | `ops/prepare-theme tree art/originals/tree.jpg --wide-y 0.75` (the tree, star first) |
+  | `sleigh` | `ops/prepare-theme sleigh art/originals/sleigh.jpg --wide-y 0.22` (the moon and the sleigh) |
+
+- Each picture must stay under 200 KB (a test checks it). The script starts at WebP quality 82 and steps down, then
+  smooths the pencil grain a little, until it fits.
+- A new drawing puts things in new places, so check each theme's `theme.css`: `--fx-x`/`--fx-y` (where the
+  fireplace's sparks rise and the tree's glow sits) and `--moon-x`/`--moon-y` (the sleigh's halo, and the height the
+  gold sleigh flies at). Each has its own values for the phone and, under `orientation: landscape`, the computer.
 - The script reads JPEG and PNG photos. An iPhone photo saved as HEIC must be saved as JPEG first.
 - The originals in `art/originals/` are kept in git. Keep photos small (a phone photo is fine).
 - The app picks up the new pictures after the next deploy: run the installer again (`sh setup-wonderful.sh`) or
