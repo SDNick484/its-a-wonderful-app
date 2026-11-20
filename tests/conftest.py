@@ -17,7 +17,7 @@ FIXTURES = Path(__file__).parent / "fixtures"   # tmdb/, matinee/, anthropic/: r
 
 # The SPA's ES modules in static/js/. tests/test_js_modules.py checks this list is complete.
 JS_DIR = ROOT / "static" / "js"
-JS_MODULES = ["add.js", "continue.js", "core.js", "detail.js", "grid.js", "main.js", "rating.js", "search.js", "settings.js",
+JS_MODULES = ["add.js", "calendar.js", "continue.js", "core.js", "detail.js", "grid.js", "main.js", "rating.js", "search.js", "settings.js",
               "surprise.js", "theme.js", "worth.js"]
 
 
