@@ -155,3 +155,25 @@ def test_empty_month(cal):
 
 def test_anonymous_is_401(anon_client):
     assert anon_client.get("/api/calendar", headers={"Cf-Connecting-Ip": "1.2.3.4"}).status_code == 401
+
+
+def test_an_after_midnight_watch_is_one_night(cal):
+    """Picked at 00:30 on Dec 6, TV on at 00:35, finished: watch_tonight writes started_on and finish() writes
+    finished_on as calendar dates (Dec 6), but the night the family watched is Dec 5, as the session says. One cell."""
+    client, con = cal
+    elf = add_movie(con, 10719, "Elf", 2003)
+    vid = add_viewing(con, elf, "finished", "2026-12-06", "2026-12-06", sessions=("2026-12-06T08:35:00Z",))
+    days = month(client, "2026-12")["days"]
+    assert list(days) == ["2026-12-05"]
+    assert [(e["viewing_id"], e["finished"]) for e in days["2026-12-05"]] == [(vid, True)]
+
+
+def test_a_finish_on_a_later_night_without_the_tv_still_shows(cal):
+    """Only a calendar date that is an after-midnight session's own date folds into its night; a later finish date
+    (watched the end somewhere the TV didn't see) still has its own cell."""
+    client, con = cal
+    elf = add_movie(con, 10719, "Elf", 2003)
+    add_viewing(con, elf, "finished", "2026-12-03", "2026-12-07", sessions=("2026-12-04T03:40:00Z",))
+    days = month(client, "2026-12")["days"]
+    assert sorted(days) == ["2026-12-03", "2026-12-07"]
+    assert days["2026-12-07"][0]["finished"] is True and days["2026-12-03"][0]["finished"] is False
