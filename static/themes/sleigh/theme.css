@@ -6,14 +6,14 @@
   background-color: #0b1530;
   background-image: url("background.webp");
   --scrim-rgb: 6 10 24;
-  --moon-x: 68%;        /* where the sleigh crosses (matches the moon in the picture) */
-  --moon-y: 16%;
+  --moon-x: 30%;        /* the moon in the drawing; the sleigh crosses at --moon-y, above the drawn one */
+  --moon-y: 15%;
 }
 @media (orientation: landscape) {
   #scene {
     background-image: url("background-wide.webp");
-    --moon-x: 70%;
-    --moon-y: 28%;
+    --moon-x: 43%;
+    --moon-y: 15%;
   }
 }
 

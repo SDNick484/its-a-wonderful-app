@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Turn a photo of a drawing into a theme's two pictures (spec §14.3, §14.4, plan Task 14).
 
-  ops/prepare-theme <key> <photo>     <key> is a folder in static/themes (fireplace, toystore, tree, sleigh)
+  ops/prepare-theme <key> <photo> [--wide-y 0.85]
+      <key> is a folder in static/themes (fireplace, toystore, tree, sleigh)
 
 It writes static/themes/<key>/background.webp (1080 x 2340, portrait for a phone) and background-wide.webp (2340 x
-1080, landscape for a desktop). Each is cut from the middle of the photo, resized, saved as WebP at quality 82, with
-the photo's rotation applied and all EXIF data left out (GPS, camera, time). The photo itself is never changed: keep
-the original in art/originals/. Needs Pillow (py3-pillow on Alpine). Route-free and standalone: it never imports app.
+1080, landscape for a desktop). Each is cut from the middle of the photo; a portrait drawing loses most of its height
+in the landscape cut, so --wide-y moves that cut (0 keeps the top of the drawing, 1 the bottom, 0.5 the middle). Each is
+resized and saved as WebP at quality 82, stepping down (and then smoothing the pencil grain a little) until it is under
+200 KB, with the photo's rotation applied and all EXIF data left out (GPS, camera, time). The photo itself is never
+changed: keep the original in art/originals/. Needs Pillow (py3-pillow on Alpine). Route-free and standalone: it
+never imports app.
 
 Exit status: 0 written, 1 the photo could not be read, 2 bad arguments (unknown key)."""
 import argparse
@@ -16,13 +20,16 @@ import sys
 import tempfile
 from pathlib import Path
 
-from PIL import Image, ImageOps, UnidentifiedImageError
+import io
+
+from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
 
 APP_DIR = Path(__file__).resolve().parent.parent
 THEMES_DIR = APP_DIR / "static" / "themes"
 PORTRAIT = (1080, 2340)
 LANDSCAPE = (2340, 1080)
-QUALITY = 82
+BUDGET = 200_000           # bytes per picture (tests/test_themes.py holds the shipped art to it)
+STEPS = (82, 74, 66, 58, 50)
 
 
 def theme_keys(themes_dir):
@@ -30,21 +37,39 @@ def theme_keys(themes_dir):
     return sorted(p.name for p in Path(themes_dir).iterdir() if (p / "theme.css").is_file())
 
 
-def cover(img, size):
-    """Scale the picture so it covers `size`, then cut the middle out: nothing is stretched."""
+def cover(img, size, y=0.5):
+    """Scale the picture so it covers `size`, then cut it out: centred across, and `y` of the way down the spare
+    height (0 the top, 0.5 the middle, 1 the bottom). Nothing is stretched."""
     w, h = size
     scale = max(w / img.width, h / img.height)
     big = img.resize((math.ceil(img.width * scale), math.ceil(img.height * scale)), Image.Resampling.LANCZOS)
-    left, top = (big.width - w) // 2, (big.height - h) // 2
+    left, top = (big.width - w) // 2, round((big.height - h) * y)
     return big.crop((left, top, left + w, top + h))
+
+
+def encode(img, budget=None):
+    """The picture as WebP bytes under `budget`: quality 82 if it fits, then lower steps; a scan of coloured pencil is
+    mostly paper grain, so if no step fits, the grain is smoothed (a 3-pixel median) and the steps are tried again.
+    No exif= argument: the photo's metadata is dropped here."""
+    budget = BUDGET if budget is None else budget
+    data = b""
+    for candidate in (img, img.filter(ImageFilter.MedianFilter(3))):
+        for quality in STEPS:
+            buf = io.BytesIO()
+            candidate.save(buf, "WEBP", quality=quality, method=6)
+            data = buf.getvalue()
+            if len(data) < budget:
+                return data
+    return data   # the smallest try; the theme test will say it is over budget
 
 
 def save_webp(img, path):
     """Write through a temp file in the same folder, so a half-written picture never replaces a good one."""
+    data = encode(img)
     fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".webp.tmp")
-    os.close(fd)
     try:
-        img.save(tmp, "WEBP", quality=QUALITY, method=6)  # no exif= argument: the metadata is dropped here
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
         os.chmod(tmp, 0o644)
         os.replace(tmp, path)
     finally:
@@ -52,7 +77,7 @@ def save_webp(img, path):
             os.unlink(tmp)
 
 
-def prepare(key, photo, themes_dir=THEMES_DIR):
+def prepare(key, photo, themes_dir=THEMES_DIR, wide_y=0.5):
     """Write both pictures for theme `key` from the photo. Returns the two paths. Raises ValueError for an unknown key
     and OSError or UnidentifiedImageError for a photo that cannot be read (nothing is written then)."""
     if key not in theme_keys(themes_dir):
@@ -61,7 +86,7 @@ def prepare(key, photo, themes_dir=THEMES_DIR):
         img = ImageOps.exif_transpose(opened)   # turn the picture the way the camera held it
         if img.mode != "RGB":
             img = img.convert("RGB")
-        portrait, wide = cover(img, PORTRAIT), cover(img, LANDSCAPE)
+        portrait, wide = cover(img, PORTRAIT), cover(img, LANDSCAPE, wide_y)
     folder = Path(themes_dir) / key
     outputs = [folder / "background.webp", folder / "background-wide.webp"]
     save_webp(portrait, outputs[0])
@@ -69,13 +94,26 @@ def prepare(key, photo, themes_dir=THEMES_DIR):
     return outputs
 
 
+def share(text):
+    """An argparse type: a number from 0 to 1."""
+    try:
+        value = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a number") from None
+    if not 0 <= value <= 1:
+        raise argparse.ArgumentTypeError(f"{text} is not between 0 and 1")
+    return value
+
+
 def main(argv=None, themes_dir=THEMES_DIR):
     parser = argparse.ArgumentParser(description="Make a theme's background pictures from a photo of a drawing.")
     parser.add_argument("key", help="the theme folder: " + ", ".join(theme_keys(themes_dir)))
     parser.add_argument("photo", help="the photo, for example art/originals/fireplace.jpg")
+    parser.add_argument("--wide-y", type=share, default=0.5, metavar="0-1",
+                        help="where the landscape picture is cut from: 0 the top of the drawing, 1 the bottom (0.5)")
     args = parser.parse_args(argv)
     try:
-        outputs = prepare(args.key, args.photo, themes_dir)
+        outputs = prepare(args.key, args.photo, themes_dir, args.wide_y)
     except ValueError as err:
         print(f"prepare-theme: {err}", file=sys.stderr)
         return 2
