@@ -79,7 +79,7 @@ function openCalSheet(cell, date, entries) {
   });
   document.addEventListener("keydown", onCalKey);
   window.addEventListener("hashchange", closeCalSheet);   // a row is a link to the movie
-  calSheet.querySelector("[data-close]").focus();
+  calSheet.querySelector("button[data-close]").focus();
 }
 
 // ================================================================= the month

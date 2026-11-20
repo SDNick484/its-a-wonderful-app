@@ -106,6 +106,7 @@ def test_tapping_a_day_opens_the_sheet(browser, seeded, viewport):   # noqa: F81
     assert rows.count() == 2
     assert "Elf (2003)" in rows.nth(0).inner_text() and "Finished" in rows.nth(0).inner_text()
     assert "Home Alone (1990)" in rows.nth(1).inner_text() and "Finished" not in rows.nth(1).inner_text()
+    assert page.evaluate("document.activeElement.closest('.sheet-panel') !== null")   # focus moves into the dialog
     page.keyboard.press("Escape")
     assert page.locator(".sheet").count() == 0
     assert page.evaluate("document.activeElement.dataset.date") == "2026-12-05"
