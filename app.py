@@ -23,6 +23,7 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /api/services     GET the streaming services, PUT {key, status} to subscribe, consider or ignore one
   /api/movies/<id>/providers/refresh   POST: ask TMDB where it streams now
   /api/worth        GET Worth a Month?: per considering service, the list movies it would add ({year, season, services})
+  /api/calendar     GET ?month=YYYY-MM: the movies watched on each day of a month
   (ownership and shelf come from Matinee: asked on add, on the detail view when over a day old, and nightly)
   /api/theme        GET today's Advent theme {"theme": "fireplace"|"toystore"|"tree"|"sleigh"|null, "until": "YYYY-MM-DD"}
   /api/theme/prefs  GET / PUT {"enabled"?, "mode"?: "system"|"light"|"dark"}: Themes on or off, the plain look
@@ -47,7 +48,7 @@ from db import SCHEMA, SCHEMA_VERSION, connect, get_db, migrate, init_db  # noqa
 from auth import KEY_IDENTITY, presented_key, lan_host, access_identity, cross_site  # noqa: F401
 from auth import editor_required, hook_required  # noqa: F401
 from tmdb import TmdbError  # noqa: F401
-import ai, ha, images, matinee, movies, people, providers, randomizer, ratings, search, sync, themes, tmdb, viewings, worth  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
+import ai, ha, images, matinee, movies, people, providers, randomizer, ratings, search, sync, themes, tmdb, viewings, watched_days, worth  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
 
 
 # ===================================================================== split modules
@@ -55,7 +56,8 @@ import ai, ha, images, matinee, movies, people, providers, randomizer, ratings, 
 # in the tests) also rebinds X in each split module that holds it, so their code reads the new value. Patch app.X,
 # never the sibling module. A new module goes here and in installer/build.sh's cp line.
 _SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "ai", "images", "matinee", "movies", "people", "providers", "randomizer",
-                  "ratings", "search", "sync", "ha", "viewings", "themes", "worth")
+                  "ratings", "search", "sync", "ha", "viewings", "themes", "worth",
+                  "watched_days")
 
 
 class _AppModule(types.ModuleType):
@@ -237,6 +239,13 @@ def api_worth():
     """Worth a Month? (spec §13): {"year", "season": true in November and December, "services": [{service, name, movies,
     count, reason}]}, the considering services most movies first. Reads the database only."""
     return jsonify(worth.worth(get_db()))
+
+
+@app.get("/api/calendar")
+@editor_required
+def api_calendar():
+    """§5: {"month", "today", "days": {date: [movie entries]}} for ?month=YYYY-MM (default: this month)."""
+    return jsonify(watched_days.month_view(get_db(), request.args.get("month")))
 
 
 def _movie_json(con, row):
