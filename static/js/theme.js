@@ -125,11 +125,37 @@ const fx = (() => {
     s.sleighAt = now + rand(a, b);
   }
 
-  // A plain gold silhouette: a sleigh with a rider and two animals ahead of it, facing right, drawn at scale u.
+  // Santa in the seat, in colour so he stands out from the gold sleigh: a red coat with a dark belt and a gold buckle,
+  // a white beard under a pink face, and a red hat with white fur and a pompom. Units as drawSleigh (the seat's floor
+  // is y 0.1, its back x -0.6).
+  function drawSanta(ctx) {
+    const RED = "#ff3b30", FUR = "#fffaf0";
+    ctx.fillStyle = RED;
+    ctx.beginPath(); ctx.ellipse(-0.18, -0.3, 0.36, 0.48, 0, 0, 6.3); ctx.fill();                 // the coat
+    ctx.strokeStyle = RED; ctx.lineWidth = 0.16; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(0, -0.42); ctx.lineTo(0.5, -0.28); ctx.stroke();                 // the arm, to the reins
+    ctx.fillStyle = "#2a1a12";
+    ctx.fillRect(-0.53, -0.28, 0.7, 0.12);                                                        // the belt
+    ctx.fillStyle = "#f7d98a";
+    ctx.fillRect(-0.24, -0.3, 0.14, 0.16);                                                        // its buckle
+    ctx.fillStyle = FUR;
+    ctx.beginPath(); ctx.arc(-0.12, -0.84, 0.22, 0, 6.3); ctx.fill();                            // the beard
+    ctx.fillStyle = "#ffcfb0";
+    ctx.beginPath(); ctx.arc(-0.07, -0.96, 0.12, 0, 6.3); ctx.fill();                            // the face
+    ctx.fillStyle = RED;
+    ctx.beginPath(); ctx.moveTo(-0.36, -1.04); ctx.lineTo(0.14, -1.04);                         // the hat, flopping back
+    ctx.quadraticCurveTo(-0.05, -1.45, -0.5, -1.36); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = FUR;
+    ctx.fillRect(-0.4, -1.1, 0.58, 0.1);                                                          // its fur trim
+    ctx.beginPath(); ctx.arc(-0.52, -1.34, 0.09, 0, 6.3); ctx.fill();                            // its pompom
+  }
+
+  // A gold sleigh with Santa (in colour) aboard and two animals ahead of it, facing right, drawn at scale u.
   function drawSleigh(ctx, x, y, u, t) {
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(u, u);
+    drawSanta(ctx);                                                     // behind the bowl, so it hides his lap
     ctx.fillStyle = "#f7d98a";
     ctx.strokeStyle = "#f7d98a";
     ctx.lineWidth = 0.07;
@@ -141,8 +167,6 @@ const fx = (() => {
     ctx.closePath(); ctx.fill();
     ctx.beginPath();                                                    // the runner
     ctx.moveTo(-1.1, 0.68); ctx.lineTo(1.0, 0.68); ctx.quadraticCurveTo(1.4, 0.68, 1.3, 0.3); ctx.stroke();
-    ctx.beginPath(); ctx.arc(-0.2, -0.78, 0.2, 0, 6.3); ctx.fill();     // the rider
-    ctx.beginPath(); ctx.moveTo(-0.45, -0.6); ctx.lineTo(-0.2, -1.2); ctx.lineTo(0.05, -0.6); ctx.closePath(); ctx.fill();
     ctx.lineWidth = 0.035;
     for (const [i, off] of [[0, 2.7], [1, 4.3]]) {                      // two animals, legs galloping
       const bx = 1.3 + off;

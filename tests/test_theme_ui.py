@@ -419,3 +419,18 @@ def test_light_look_keeps_three_columns_and_readable_text_on_the_screens(browser
         fg = rgb_of(page.evaluate("(s) => getComputedStyle(document.querySelector(s)).color", sel))
         assert ratio(fg, body_bg(page)) >= 4.5, sel
     assert errors == []
+
+
+def test_santa_rides_the_sleigh_in_red(browser, seeded, day):   # noqa: F811
+    """The gold sleigh made Santa a gold blob on a gold sleigh; he is drawn in red so he can be seen. The first sleigh
+    comes 4 to 9 s after the page opens and takes 11 s to cross: some canvas pixel turns plainly red (snow, glitter and
+    the sleigh are white or gold, and the drawing is CSS, not on the canvas)."""
+    day(DAYS["sleigh"])
+    page, errors = open_page(browser, seeded, reduced_motion="no-preference")
+    wait_for_art(page, "sleigh")
+    page.wait_for_function("""(() => {
+        const c = document.getElementById('fx'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200 && d[i] > 200 && d[i + 1] < 90 && d[i + 2] < 90) return true;
+        return false;
+    })()""", polling=250, timeout=20000)
+    assert errors == []
