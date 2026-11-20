@@ -33,7 +33,10 @@
         <h2 class="section-title" id="continue-title">Continue Watching</h2>
         <div class="continue-row" id="continue-row"></div>
       </section>
-      <h2 class="section-title">Our Christmas movies</h2>
+      <div class="list-head">
+        <h2 class="section-title">Our Christmas movies</h2>
+        <a href="#/calendar" class="header-link list-head-link" id="calendar-btn" aria-label="Calendar"><svg class="cal-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><rect x="3.5" y="5" width="17" height="15.5" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Calendar</span></a>
+      </div>
       <section class="surprise" id="surprise" aria-label="Surprise us">
         <button type="button" class="btn surprise-btn" id="surprise-btn">🎲 Surprise us, ya filthy animals</button>
         <div class="chips" id="surprise-chips" role="group" aria-label="Filters for the surprise"></div>
@@ -64,6 +67,16 @@
       <p class="settings-hint">Streaming services you don't have, and the movies on our list each would add that you haven't watched this year.</p>
       <div id="worth-list"></div>
       <a href="#/settings" class="back-link worth-settings-link" id="worth-settings">Change which services you have</a>
+    </section>
+    <section id="calendar-view" aria-labelledby="calendar-title" hidden>
+      <a href="#/" class="back-link" id="calendar-back">&larr; Our list</a>
+      <div class="cal-head">
+        <a href="#/calendar" class="icon-btn icon-btn-quiet cal-arrow" id="calendar-prev" aria-label="Previous month">&lsaquo;</a>
+        <h2 class="section-title cal-title" id="calendar-title" aria-live="polite">Calendar</h2>
+        <a href="#/calendar" class="icon-btn icon-btn-quiet cal-arrow" id="calendar-next" aria-label="Next month">&rsaquo;</a>
+      </div>
+      <div class="cal-grid" id="calendar-grid"></div>
+      <p class="empty cal-status" id="calendar-status" aria-live="polite"></p>
     </section>
     <section id="settings-view" hidden>
       <a href="#/" class="back-link" id="settings-back">&larr; Our list</a>

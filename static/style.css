@@ -755,6 +755,149 @@ main {
   margin-top: var(--s4);
 }
 
+/* ---------------------------------------------------------------- Calendar (calendar spec §6) */
+.cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+}
+.cal-title {
+  flex: 1;
+  margin-bottom: 0;
+  text-align: center;
+}
+.cal-arrow {
+  font-size: 2rem;
+}
+/* The way in: a link beside "Our Christmas movies" (the header has no room for a fourth control at 360 px, §9). */
+.list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+.list-head .section-title {
+  margin-bottom: 0;
+}
+.list-head-link {
+  flex: none;
+  gap: var(--s2);
+}
+.cal-icon {
+  display: block;
+  flex: none;
+}
+/* Seven equal columns: at 360 px, 328 px of content leaves each about 45 px, over the 44 px tap minimum. */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+.cal-wd {
+  padding-bottom: var(--s1);
+  text-align: center;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--ink-2);
+}
+.cal-day {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+}
+button.cal-day {
+  cursor: pointer;
+}
+.cal-empty {
+  opacity: .7;
+}
+.cal-poster {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.cal-day .poster-ph,
+.cal-row-poster .poster-ph {
+  overflow: hidden;
+  padding: 2px;
+  border: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+/* Day numbers and badges sit on a solid chip so they keep 4.5:1 over any poster and every theme. */
+.cal-num, .cal-more, .cal-done {
+  position: absolute;
+  min-width: 1.5em;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--raised);
+  color: var(--ink);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}
+.cal-num {
+  top: 2px;
+  left: 2px;
+}
+.cal-done {
+  top: 2px;
+  right: 2px;
+}
+.cal-more {
+  right: 2px;
+  bottom: 2px;
+}
+.cal-today::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--accent);
+  border-radius: inherit;
+  pointer-events: none;
+}
+.cal-status:empty {
+  display: none;
+}
+.cal-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--tap);
+  padding: var(--s2) 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+.cal-row-poster {
+  flex: none;
+  width: 48px;
+}
+.cal-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cal-row-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.cal-row-done {
+  font-size: var(--fs-xs);
+  color: var(--ink-2);
+}
+
 /* ---------------------------------------------------------------- ratings and people (spec §8.2, §11) */
 .star {
   display: inline-block;
