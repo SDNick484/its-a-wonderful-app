@@ -2,6 +2,7 @@
 // render_index() versions every module through an import map, so never hand-edit ?v=.
 import { api, APP_NAME, toast } from "./core.js";
 import { openAddSheet } from "./add.js";
+import { showCalendar } from "./calendar.js";
 import { checkPrompt, loadContinue, wireContinue } from "./continue.js";
 import { showDetail } from "./detail.js";
 import { loadMovies, watchPosters } from "./grid.js";
@@ -13,33 +14,36 @@ import { showWorth } from "./worth.js";
 
 let gridScroll = 0;
 
-// #/ is the grid, #/m/<id> one movie, #/settings the settings, #/worth Worth a Month?. The grid keeps its scroll
-// position while another screen is open.
+// #/ is the grid, #/m/<id> one movie, #/settings the settings, #/worth Worth a Month?, #/calendar[/YYYY-MM] the
+// Calendar. A hash that matches none of them (#/calendar/2026-13 too) is the grid. The grid keeps its scroll position
+// while another screen is open.
 function route() {
   const grid = document.getElementById("grid-view");
-  const detail = document.getElementById("detail-view");
-  const settings = document.getElementById("settings-view");
-  const worth = document.getElementById("worth-view");
+  const views = {
+    detail: document.getElementById("detail-view"),
+    settings: document.getElementById("settings-view"),
+    worth: document.getElementById("worth-view"),
+    calendar: document.getElementById("calendar-view"),
+  };
   const m = location.hash.match(/^#\/m\/(\d+)$/);
-  const view = m ? "detail" : location.hash === "#/settings" ? "settings" : location.hash === "#/worth" ? "worth" : "grid";
+  const cal = location.hash.match(/^#\/calendar(?:\/(\d{4}-(?:0[1-9]|1[0-2])))?$/);
+  const view = m ? "detail" : cal ? "calendar" : location.hash === "#/settings" ? "settings"
+    : location.hash === "#/worth" ? "worth" : "grid";
   const worthBtn = document.getElementById("worth-btn");
   if (view === "worth") worthBtn.setAttribute("aria-current", "page");
   else worthBtn.removeAttribute("aria-current");
   if (view !== "grid") {
     if (!grid.hidden) gridScroll = window.scrollY;
     grid.hidden = true;
-    detail.hidden = view !== "detail";
-    settings.hidden = view !== "settings";
-    worth.hidden = view !== "worth";
+    for (const [name, el] of Object.entries(views)) el.hidden = name !== view;
     window.scrollTo(0, 0);
     if (m) showDetail(Number(m[1]));
     else if (view === "settings") showSettings();
+    else if (view === "calendar") showCalendar(cal[1] || null);
     else showWorth();
   } else {
     const wasOther = grid.hidden;
-    detail.hidden = true;
-    settings.hidden = true;
-    worth.hidden = true;
+    for (const el of Object.values(views)) el.hidden = true;
     grid.hidden = false;
     document.title = APP_NAME;
     if (wasOther) {

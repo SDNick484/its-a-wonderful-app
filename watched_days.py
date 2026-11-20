@@ -55,9 +55,17 @@ def month_view(con, raw):
         stamps = starts.get(r["id"], [])
         if r["status"] == "tonight" and not stamps:
             continue
-        finished_on = _day(r["finished_on"]) if r["status"] == "finished" else None
-        nights = {night_of(s) for s in stamps} | {_day(r["started_on"]), finished_on}
         whens = [w for w in map(_stamp, stamps) if w]
+        # started_on and finished_on are calendar dates (today(), the last session's date), so a watch after midnight
+        # would also show on the next day: that date folds into the session's night, a night that did happen.
+        fold = {}
+        for w in whens:
+            local = _local(w)
+            if local.hour < NIGHT_ENDS:
+                fold[local.date()] = local.date() - dt.timedelta(days=1)
+        started_on, finished_on = _day(r["started_on"]), _day(r["finished_on"]) if r["status"] == "finished" else None
+        started_on, finished_on = fold.get(started_on, started_on), fold.get(finished_on, finished_on)
+        nights = {night_of(s) for s in stamps} | {started_on, finished_on}
         first = min(whens).astimezone(dt.timezone.utc).isoformat() if whens else ""
         for night in nights:
             if night is None or (night.year, night.month) != (year, month):

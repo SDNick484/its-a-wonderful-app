@@ -107,6 +107,12 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   from the header link at any time of year, most movies first; a service adding nothing says why. It only reads
   the cache, so it works while TMDB or Matinee is down. API: `GET /api/worth`
   (`{"year", "season", "services": [{"service", "name", "movies", "count", "reason"}]}`).
+- **Calendar.** One month as a grid with a poster on each night we watched a movie, opened from the **Calendar** link
+  beside "Our Christmas movies" (`#/calendar`, or `#/calendar/2026-12` for a month; Back steps between months). A
+  movie shows on every night the TV saw it (before 4 am counts as the evening before), and on its start and finish
+  dates when the TV did not see the night; abandoned movies and picks we never watched stay off. A "+N" badge means
+  more than one movie that night, a check means one finished; tap a day for the list. It only reads the database.
+  API: `GET /api/calendar?month=2026-12` (`{"month", "today", "days"}`).
 - **Advent themes.** The app wears a scene for each week of Advent, by the host's local date (`TZ`, never UTC): the
   fireplace from the first Sunday of Advent, the toy store the Sunday after, the Christmas tree the Sunday after that,
   and Santa's sleigh from the fourth Sunday through January 6 (2026: Nov 29, Dec 6, Dec 13, Dec 20 to Jan 6). The
