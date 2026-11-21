@@ -996,26 +996,30 @@ button.cal-day {
   font-weight: 800;
   color: var(--amber-text);
 }
-.rate-btns {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));   /* 1-10 and ½ wrap onto two rows on a phone */
-  gap: var(--s1);
+.rate-val {
+  min-width: 2.5em;
+  text-align: right;
+  font-size: var(--fs-lg);
 }
-.rate-btn {
+.rate-clear {
   min-height: var(--tap);
-  border: 1px solid var(--field-border);
-  border-radius: var(--r-card);
-  background: var(--raised);
-  color: var(--ink);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
+  padding: 0 var(--s3);
 }
-.rate-btn[aria-pressed="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 800;
+.rate-clear[hidden] {
+  display: none;   /* .btn's display would otherwise show it on an unrated row */
+}
+.rate-slider {
+  display: block;
+  width: 100%;
+  min-height: var(--tap);   /* the whole strip is the tap target, not just the thumb */
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  touch-action: pan-y;      /* a sideways drag moves the slider; scrolling the sheet still works */
+}
+.rate-row-unset .rate-slider {
+  accent-color: var(--ink-3);
+  opacity: 0.55;            /* not rated yet: the thumb rests on 7 until someone touches it */
 }
 .rate-actions {
   margin-top: var(--s3);
