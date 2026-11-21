@@ -113,6 +113,34 @@ def test_cross_site_browser_requests_are_refused(client):
     assert r.status_code == 200
 
 
+# Chrome marks the last hop of a redirect chain that passed through another site as cross-site, so the page
+# load after a Cloudflare Access sign-in (team.cloudflareaccess.com -> the app) arrives like this.
+ACCESS_REDIRECT = {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document"}
+
+
+def test_cross_site_page_load_is_allowed(client):
+    """Opening the app after an Access sign-in, or from a link on another site, must load the page."""
+    r = client.get("/", headers={"Host": LAN, **ACCESS_REDIRECT})
+    assert r.status_code == 200 and "<title>It's a Wonderful App</title>" in r.get_data(as_text=True)
+
+
+def test_cross_site_form_post_is_still_refused(client):
+    """A form on another site that POSTs here is also a navigation: it must still be refused."""
+    headers = {"Host": LAN, "Origin": "https://evil.example.com", **ACCESS_REDIRECT}
+    r = client.post("/api/people", headers=headers, data="x", content_type="text/plain")
+    assert r.status_code == 403 and r.get_json()["error"] == "Cross-site request refused"
+
+
+def test_cross_site_fetch_is_still_refused(client):
+    """A script on another site reading the API (Sec-Fetch-Mode: cors / no-cors) is still refused."""
+    for mode in ("cors", "no-cors"):
+        r = client.get("/api/health", headers={"Host": LAN, "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": mode})
+        assert r.status_code == 403
+    # a link from another site straight to the API is a navigation too, but could spend TMDB / AI quota
+    r = client.get("/api/search?q=elf", headers={"Host": LAN, **ACCESS_REDIRECT})
+    assert r.status_code == 403
+
+
 # ------------------------------------------------------------------------------------------------- the key
 def test_api_key(anon_client, monkeypatch):
     monkeypatch.setattr(app, "WONDERFUL_API_KEY", "k-123")
