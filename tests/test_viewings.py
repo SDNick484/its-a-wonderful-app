@@ -356,3 +356,105 @@ def test_progress_labels():
     assert label(76 * 60, 100) == "Almost done"
     assert label(200 * 60, 100) == "Almost done"
     assert label(600, None) is None and label(600, 0) is None                     # runtime unknown: no label
+
+
+# ------------------------------------------------------------------------------------------------ the Watched list, deleting
+def watched(client, movie_id):
+    return client.get(f"/api/movies/{movie_id}").get_json()["watched"]
+
+
+def test_detail_lists_finished_viewings_newest_first(client, fam):
+    assert watched(client, fam["klaus"]) == []
+    first = tonight(client, fam["klaus"], people=fam["people"][:2])["viewing_id"]
+    finish(client, first, finished_on="2025-12-20")
+    second = tonight(client, fam["klaus"])["viewing_id"]
+    finish(client, second, finished_on="2026-11-20")
+    gave_up = tonight(client, fam["klaus"])["viewing_id"]
+    client.post(f"/api/viewings/{gave_up}/abandon")
+    tonight(client, fam["klaus"])                                                 # open: not in the list either
+    assert watched(client, fam["klaus"]) == [
+        {"viewing_id": second, "finished_on": "2026-11-20", "people": fam["people"], "watch_pending": False},
+        {"viewing_id": first, "finished_on": "2025-12-20", "people": fam["people"][:2], "watch_pending": False}]
+
+
+def test_deleting_a_viewing_deletes_its_matinee_watch_too(client, fam):
+    v = tonight(client, fam["elf"])["viewing_id"]
+    finish(client, v, finished_on=app.today().isoformat())
+    assert vrow(v)["matinee_watch_id"] == 3
+    fam["matinee"].calls.clear()
+    r = client.delete(f"/api/viewings/{v}")
+    assert r.status_code == 200 and r.get_json() == {"ok": True, "watched": []}
+    assert ("DELETE", "/admin/api/titles/1/watches/3", None) in fam["matinee"].calls
+    assert ("GET", f"/admin/api/tmdb/{ELF}/owned", None) in fam["matinee"].calls    # Matinee's last watch read again
+    assert vrow(v) is None and watched(client, fam["elf"]) == []
+    with app.app.app_context():
+        con = app.get_db()
+        assert con.execute("SELECT COUNT(*) FROM viewing_people WHERE viewing_id=?", (v,)).fetchone()[0] == 0
+        month = app.watched_days.month_view(con, app.today().strftime("%Y-%m"))
+    assert month["days"] == {}                                                    # gone from the Calendar
+    assert client.delete(f"/api/viewings/{v}").status_code == 404
+    assert len(fam["ha"].posts) == 1                                              # Home Assistant isn't told anything
+
+
+def test_deleting_the_second_of_two_viewings_keeps_the_first(client, fam):
+    first = tonight(client, fam["klaus"])["viewing_id"]
+    finish(client, first)
+    second = tonight(client, fam["klaus"])["viewing_id"]
+    finish(client, second)
+    assert client.delete(f"/api/viewings/{second}").get_json()["watched"][0]["viewing_id"] == first
+    with app.app.app_context():
+        assert app.randomizer.watched_this_year(app.get_db(), fam["klaus"], app.today().year)
+
+
+@pytest.mark.parametrize("error", ["refused", 502, 401], ids=["refused", "http502", "wrong-key"])
+def test_matinee_down_keeps_the_viewing(client, fam, monkeypatch, error):
+    v = tonight(client, fam["elf"])["viewing_id"]
+    finish(client, v)
+    up = urllib.request.urlopen
+
+    def down(req, timeout=None):
+        if urllib.parse.urlparse(req.full_url).hostname != "movies.example.com":
+            return up(req, timeout=timeout)
+        if error == "refused":
+            raise urllib.error.URLError(ConnectionRefusedError())
+        raise urllib.error.HTTPError(req.full_url, error, "Error", {}, None)
+
+    monkeypatch.setattr(urllib.request, "urlopen", down)
+    r = client.delete(f"/api/viewings/{v}")
+    assert r.status_code == 502 and r.get_json()["error"]
+    assert vrow(v)["matinee_watch_id"] == 3 and len(watched(client, fam["elf"])) == 1
+
+
+def test_a_watch_matinee_already_lost_still_deletes(client, fam):
+    v = tonight(client, fam["elf"])["viewing_id"]
+    finish(client, v)
+    sql("UPDATE viewings SET matinee_watch_id=99 WHERE id=?", v)                    # Matinee answers 404 for 99
+    assert client.delete(f"/api/viewings/{v}").status_code == 200 and vrow(v) is None
+
+
+def test_deleting_an_unsent_watch_sends_nothing_and_owes_nothing(client, fam, monkeypatch):
+    v = tonight(client, fam["elf"])["viewing_id"]
+    up = urllib.request.urlopen
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: (_ for _ in ()).throw(urllib.error.URLError("down")))
+    finish(client, v)
+    monkeypatch.setattr(urllib.request, "urlopen", up)
+    fam["matinee"].calls.clear()
+    assert client.delete(f"/api/viewings/{v}").status_code == 200
+    assert not [c for c in fam["matinee"].calls if c[0] == "DELETE"]
+    with app.app.app_context():
+        assert app.viewings.owed_ids(app.get_db()) == []
+
+
+def test_deleting_with_matinee_off_deletes_here(client, fam, monkeypatch):
+    v = tonight(client, fam["elf"])["viewing_id"]
+    finish(client, v)
+    monkeypatch.setattr(app, "MATINEE_API_KEY", "")
+    assert client.delete(f"/api/viewings/{v}").status_code == 200 and vrow(v) is None
+
+
+def test_only_a_finished_viewing_can_be_deleted(client, fam):
+    v = tonight(client, fam["klaus"])["viewing_id"]
+    assert client.delete(f"/api/viewings/{v}").status_code == 409
+    client.post(f"/api/viewings/{v}/abandon")
+    assert client.delete(f"/api/viewings/{v}").status_code == 409
+    assert client.delete("/api/viewings/999").status_code == 404

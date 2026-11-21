@@ -436,6 +436,32 @@ def send_watch(con, viewing_id):
     return True
 
 
+def delete(con, viewing_id):
+    """Delete a finished viewing logged by mistake, and its Matinee watch with it, so both apps keep the same history.
+    Matinee down or refusing is a 502 and nothing is deleted; a watch Matinee no longer has (404) is already gone. A
+    watch never sent (owed, or sync off) is only deleted here. Matinee's newest watch is read again afterwards, for
+    "Not watched this year". Home Assistant's movie log can't be changed after the fact. 409 for a viewing that isn't
+    finished."""
+    row = get_row(con, viewing_id)
+    if row["status"] != "finished":
+        abort(make_err(409, "Only a finished viewing can be deleted."))
+    if row["matinee_watch_id"] is not None and matinee.configured():
+        s = con.execute("SELECT matinee_title_id FROM matinee_sync WHERE movie_id=?", (row["movie_id"],)).fetchone()
+        if s is not None and s["matinee_title_id"] is not None:
+            try:
+                matinee.client().delete_watch(s["matinee_title_id"], row["matinee_watch_id"])
+            except matinee.Rejected as e:
+                if e.status != 404:
+                    abort(make_err(502, f"Couldn't delete it in Matinee: {e.message}"))
+            except matinee.Unavailable as e:
+                abort(make_err(502, f"Couldn't reach Matinee, try again later. {e.message}"))
+    con.execute("DELETE FROM viewings WHERE id=?", (viewing_id,))
+    con.execute("DELETE FROM meta WHERE k IN (?, ?)", (f"{OWED}{viewing_id}", f"{ASK}{viewing_id}"))
+    con.commit()
+    if row["matinee_watch_id"] is not None and matinee.configured():
+        movies.refresh_ownership(con, row["movie_id"])
+
+
 def owed_ids(con):
     """The finished viewings whose Matinee watch is still owed, oldest first."""
     ids = []
@@ -501,6 +527,15 @@ def open_for_movie(con, movie_id):
     row = con.execute("SELECT id FROM viewings WHERE movie_id=? AND status IN ('tonight','watching','paused')"
                       " ORDER BY id DESC LIMIT 1", (movie_id,)).fetchone()
     return out(con, row["id"]) if row else None
+
+
+def watched(con, movie_id):
+    """The movie's finished viewings, newest first: [{viewing_id, finished_on, people: [person ids], watch_pending}],
+    the detail view's Watched list."""
+    rows = con.execute("SELECT id, finished_on FROM viewings WHERE movie_id=? AND status='finished'"
+                       " ORDER BY finished_on DESC, id DESC", (movie_id,)).fetchall()
+    return [{"viewing_id": r["id"], "finished_on": r["finished_on"], "people": _people_of(con, r["id"]),
+             "watch_pending": watch_pending(con, r["id"])} for r in rows]
 
 
 def continue_watching(con):

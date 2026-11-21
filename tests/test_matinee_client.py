@@ -148,6 +148,11 @@ def test_log_watch_returns_the_watch_id_and_never_says_live(matinee_fixtures):
     assert body == {"watched_date": "2025-12-24", "attendees": ["Avery", "Blake"]}     # no "live" (spec §8.3)
 
 
+def test_delete_watch_deletes_it(matinee_fixtures):
+    api().delete_watch(1, 3)
+    assert matinee_fixtures.calls[-1] == ("DELETE", "/admin/api/titles/1/watches/3", None)
+
+
 def test_people_lists_matinees_people(matinee_fixtures):
     people = api().people()
     assert [(p["name"], p["kind"], p["color"], p["sort_order"]) for p in people] == [
@@ -155,7 +160,8 @@ def test_people_lists_matinees_people(matinee_fixtures):
 
 
 CALLS = {"owned": lambda c: c.owned(ELF), "title": lambda c: c.title(1), "set_rating": lambda c: c.set_rating(1, 8.5),
-         "log_watch": lambda c: c.log_watch(1, "2025-12-24", ["Avery"]), "people": lambda c: c.people()}
+         "log_watch": lambda c: c.log_watch(1, "2025-12-24", ["Avery"]), "delete_watch": lambda c: c.delete_watch(1, 3),
+         "people": lambda c: c.people()}
 
 
 @pytest.mark.parametrize("name", CALLS)

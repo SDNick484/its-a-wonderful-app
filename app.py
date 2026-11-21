@@ -20,6 +20,7 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /api/continue     GET the Continue Watching row; /api/prompt GET the "Did you finish?" question, or null
   /api/viewings/<id>/keep | not-yet | finish | abandon   POST: Keep watching tonight, Not yet, We finished
                     ({"finished_on": "2026-12-12"}?; Matinee gets the watch, Home Assistant the movie log), We gave up
+  /api/viewings/<id>   DELETE: a finished viewing logged by mistake, and its Matinee watch
   /api/services     GET the streaming services, PUT {key, status} to subscribe, consider or ignore one
   /api/movies/<id>/providers/refresh   POST: ask TMDB where it streams now
   /api/worth        GET Worth a Month?: per considering service, the list movies it would add ({year, season, services})
@@ -286,7 +287,7 @@ def api_movie(movie_id):
     con = get_db()
     movies.refresh_ownership_if_stale(con, movie_id)
     return jsonify({**_movie_json(con, movies.get_row(con, movie_id)), **providers.movie_providers(con, movie_id),
-                    "viewing": viewings.open_for_movie(con, movie_id)})
+                    "viewing": viewings.open_for_movie(con, movie_id), "watched": viewings.watched(con, movie_id)})
 
 
 @app.post("/api/movies/<int:movie_id>/providers/refresh")
@@ -434,6 +435,17 @@ def api_viewing_abandon(viewing_id):
     con = get_db()
     viewings.abandon(con, viewing_id)
     return jsonify(viewings.out(con, viewing_id))
+
+
+@app.delete("/api/viewings/<int:viewing_id>")
+@editor_required
+def api_viewing_delete(viewing_id):
+    """Delete a finished viewing and its Matinee watch -> {"ok": true, "watched": the movie's Watched list}. 502 (and
+    nothing deleted) when Matinee can't delete the watch; 409 for a viewing that isn't finished."""
+    con = get_db()
+    movie_id = viewings.get_row(con, viewing_id)["movie_id"]
+    viewings.delete(con, viewing_id)
+    return jsonify(ok=True, watched=viewings.watched(con, movie_id))
 
 
 @app.get("/api/services")

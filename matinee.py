@@ -105,6 +105,10 @@ class Client:
             raise Unavailable("Matinee sent something we couldn't read.")   # unknown whether the watch was saved
         return watch_id
 
+    def delete_watch(self, title_id, watch_id):
+        """DELETE /admin/api/titles/<id>/watches/<watch id>. A watch Matinee doesn't have is a 404 (Rejected)."""
+        self._call("DELETE", f"/admin/api/titles/{int(title_id)}/watches/{int(watch_id)}")
+
     def people(self):
         """GET /admin/api/people -> [{id, name, kind, color, sort_order, active, watch_count}] in Matinee's order."""
         d = self._call("GET", "/admin/api/people")
