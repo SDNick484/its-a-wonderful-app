@@ -1,7 +1,6 @@
 // It's a Wonderful App: Continue Watching (spec §10). The row above the grid (only when something is in it), Watch
 // tonight, Keep watching tonight, We finished, We gave up on it, the "Did you finish?" sheet with the guess highlighted
-// (never answered for you), and "Want to rate it?" after a finish, which opens the rating sheet with the viewing's
-// people first.
+// (never answered for you), and the rating sheet after a finish, with the viewing's people first.
 import { api, esc, toast } from "./core.js";
 import { loadMovies, posterHtml, watchPosters } from "./grid.js";
 import { openRatingSheet } from "./rating.js";
@@ -118,34 +117,23 @@ async function giveUp(v) {
   }
 }
 
-// After a finish (spec §11): Rate opens the rating sheet with the viewing's people first; Skip closes.
-function askToRate(v, onRated) {
-  openContinueSheet("rate-ask", "Want to rate it?",
-    `<p class="sheet-text">How was ${esc(v.title)}?</p>`
-    + `<div class="sheet-actions"><button type="button" class="btn" data-act="rate">Rate</button>`
-    + `<button type="button" class="btn btn-quiet" data-act="skip">Skip</button></div>`,
-    null, async target => {
-      const act = target.closest("[data-act]")?.dataset.act;
-      if (act === "skip") return closeContinueSheet();
-      if (act !== "rate") return;
-      disableContinueSheet();
-      let m;
-      try {
-        m = await api(`/api/movies/${v.movie_id}`);
-      } catch (e) {
-        closeContinueSheet();
-        toast(`Couldn't open the ratings: ${e.message}`);
-        return;
-      }
-      closeContinueSheet();
-      openRatingSheet(m, null, saved => {
-        if (onRated) onRated(saved);
-        loadMovies();
-      }, v.people);
-    });
+// After a finish (spec §11) the rating sheet opens by itself, with the viewing's people first; closing it rates nobody.
+async function rateAfterFinish(v, onRated) {
+  closeContinueSheet();
+  let m;
+  try {
+    m = await api(`/api/movies/${v.movie_id}`);
+  } catch (e) {
+    toast(`Couldn't open the ratings: ${e.message}`);
+    return;
+  }
+  openRatingSheet(m, null, saved => {
+    if (onRated) onRated(saved);
+    loadMovies();
+  }, v.people);
 }
 
-// We finished: Matinee gets the watch and Home Assistant the movie log (server side), then "Want to rate it?".
+// We finished: Matinee gets the watch and Home Assistant the movie log (server side), then the rating sheet.
 // `onRated` gets the saved ratings (the detail view redraws with them). Returns the viewing, or null.
 async function finishViewing(v, onRated) {
   let saved;
@@ -159,7 +147,7 @@ async function finishViewing(v, onRated) {
   }
   toast(saved.watch_pending ? `${v.title} is finished. Matinee gets it tonight.` : `${v.title} is finished.`);
   await loadContinue();
-  askToRate(saved, onRated);
+  rateAfterFinish(saved, onRated);
   return saved;
 }
 
@@ -249,4 +237,4 @@ function wireContinue() {
   });
 }
 
-export { checkPrompt, finishViewing, keepWatching, loadContinue, watchTonight, wireContinue };
+export { checkPrompt, closeContinueSheet, finishViewing, keepWatching, loadContinue, openContinueSheet, watchTonight, wireContinue };
