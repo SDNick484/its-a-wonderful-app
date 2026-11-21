@@ -81,7 +81,16 @@ def access_identity():
 def cross_site():
     """True when a browser says this request comes from another site: an Origin that isn't this host (including
     the opaque "null"), or Sec-Fetch-Site: cross-site. A text/plain POST is a CORS "simple request" with no
-    preflight, so without this a page on any site could drive the API from a family phone on the LAN."""
+    preflight, so without this a page on any site could drive the API from a family phone on the LAN.
+
+    A top-level GET page load outside /api/ is let through. Chrome marks the page load after a Cloudflare Access
+    sign-in (a redirect back from <team>.cloudflareaccess.com) as cross-site, and a tap on a link in Gmail too. A
+    GET changes nothing and another site can't read what a navigation returns. /api/ stays guarded so a link
+    can't spend TMDB or AI quota (/api/search). Cross-site fetches (Sec-Fetch-Mode cors / no-cors) and form POSTs
+    (navigate, but not GET) are still refused."""
+    if (request.method in ("GET", "HEAD") and request.headers.get("Sec-Fetch-Mode") == "navigate"
+            and not request.path.startswith("/api/")):
+        return False
     origin = (request.headers.get("Origin") or "").strip()
     if origin and urllib.parse.urlparse(origin).netloc != request.host:
         return True
