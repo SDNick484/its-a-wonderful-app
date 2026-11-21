@@ -1135,6 +1135,41 @@ button.cal-day {
 .tonight-status + .detail-actions {
   margin-top: var(--s2);
 }
+.watched-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.watched-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  padding: var(--s2) 0;
+  border-top: 1px solid var(--line);
+}
+.watched-row:first-child {
+  border-top: 0;
+}
+.watched-when {
+  flex: 1 1 10em;
+  min-width: 0;
+}
+.watched-date {
+  font-weight: 700;
+}
+.watched-ago,
+.watched-none {
+  color: var(--ink-3);
+}
+.watched-who {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+}
+.watched-delete {
+  margin-left: auto;
+}
 .rate-row-dim .rate-name {
   color: var(--ink-3);   /* not at the viewing: still rateable, just after the ones who were */
   font-weight: 600;

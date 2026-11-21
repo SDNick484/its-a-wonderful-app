@@ -1,9 +1,10 @@
 // It's a Wonderful App: one movie's detail view (backdrop, overview, runtime, certification, cast, collection, the
-// parent note), Watch tonight / We finished, the family rating (with the notice when Matinee disagrees) and Remove.
-import { finishViewing, keepWatching, watchTonight } from "./continue.js";
+// parent note), Watch tonight / We finished, the family rating (with the notice when Matinee disagrees), the Watched
+// list (each finished viewing, deletable when it was logged by mistake) and Remove.
+import { closeContinueSheet, finishViewing, keepWatching, openContinueSheet, watchTonight } from "./continue.js";
 import { api, esc, state, toast } from "./core.js";
 import { loadMovies, posterHtml, renderGrid, watchPosters } from "./grid.js";
-import { dotsHtml, openRatingSheet, starText } from "./rating.js";
+import { dotHtml, dotsHtml, openRatingSheet, starText } from "./rating.js";
 
 const CERT_CHOICES = ["G", "PG", "PG-13", "R", "NR"];
 
@@ -54,6 +55,44 @@ function tonightHtml(m) {
     + `<button type="button" class="btn${v.status === "paused" ? " btn-quiet" : ""}" id="detail-finish">We finished</button></div>`;
 }
 
+// "2026-11-20" -> a local Date at midnight, so the day never shifts with the time zone.
+function localDay(iso) {
+  const [y, mo, d] = iso.split("-").map(Number);
+  return new Date(y, mo - 1, d);
+}
+
+function readableDay(iso) {
+  return localDay(iso).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+}
+
+// "today", "yesterday", "5 days ago", "3 weeks ago", "2 months ago", "1 year ago".
+function agoText(iso) {
+  const now = new Date();
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - localDay(iso)) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  const [n, unit] = days < 14 ? [days, "day"] : days < 60 ? [Math.floor(days / 7), "week"]
+    : days < 365 ? [Math.floor(days / 30), "month"] : [Math.floor(days / 365), "year"];
+  return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
+}
+
+// Each finished viewing, newest first: the date, how long ago, who watched, and ✕ to delete it.
+function watchedHtml(m) {
+  const list = m.watched || [];
+  if (!list.length) return `<p class="watched-none">Not watched yet.</p>`;
+  const people = new Map((m.family?.by_person || []).map(p => [p.person_id, p]));
+  return `<ul class="watched-list">` + list.map(w => {
+    const who = w.people.map(id => people.get(id)).filter(Boolean);
+    const names = who.map(p => p.name).join(", ");
+    return `<li class="watched-row" data-viewing="${w.viewing_id}">`
+      + `<span class="watched-when"><span class="watched-date">${esc(readableDay(w.finished_on))}</span>`
+      + ` <span class="watched-ago">(${esc(agoText(w.finished_on))})</span></span>`
+      + (who.length ? `<span class="watched-who" aria-label="${esc(`Watched by ${names}`)}">${who.map(dotHtml).join("")}</span>` : "")
+      + `<button type="button" class="icon-btn icon-btn-quiet watched-delete" data-viewing="${w.viewing_id}"`
+      + ` aria-label="${esc(`Delete the viewing on ${readableDay(w.finished_on)}`)}">&times;</button></li>`;
+  }).join("") + `</ul>`;
+}
+
 function detailHtml(m) {
   const meta = [m.year, m.certification, runtimeText(m.runtime_min), m.tmdb_type === "tv" ? "TV special" : ""].filter(Boolean);
   const certs = CERT_CHOICES.includes(m.certification) || !m.certification ? CERT_CHOICES : [...CERT_CHOICES, m.certification];
@@ -66,6 +105,7 @@ function detailHtml(m) {
     + (m.overview ? `<p class="detail-overview">${esc(m.overview)}</p>` : "")
     + `<div id="detail-tonight-box">${tonightHtml(m)}</div>`
     + `<h3 class="detail-label">Ratings</h3><div id="detail-ratings">${ratingsHtml(m)}</div>`
+    + `<h3 class="detail-label">Watched</h3><div id="detail-watched">${watchedHtml(m)}</div>`
     + `<h3 class="detail-label">Where to watch</h3><div id="detail-where-box">${whereHtml(m)}</div>`
     + (m.top_cast.length ? `<h3 class="detail-label">Cast</h3><p class="detail-cast">${m.top_cast.map(esc).join(", ")}</p>` : "")
     + `<h3 class="detail-label"><label for="detail-cert">Certification</label></h3>`
@@ -131,6 +171,50 @@ async function refreshProviders(m, quiet) {
   renderGrid();   // the card behind this screen shows the new line when the person goes back
 }
 
+function redrawWatched(m) {
+  const box = document.getElementById("detail-watched");
+  if (box && box.isConnected && Number(location.hash.split("/")[2]) === m.id) box.innerHTML = watchedHtml(m);
+}
+
+// ✕ on a Watched row: "Delete this viewing?", then it goes here and in Matinee (the server refuses when Matinee
+// can't be reached, so the two never disagree). The Calendar and "Not watched this year" read the same rows.
+function confirmDelete(m, viewingId, from) {
+  const w = (m.watched || []).find(x => x.viewing_id === viewingId);
+  if (!w) return;
+  openContinueSheet("watched-delete", "Delete this viewing?",
+    `<p class="sheet-text">${esc(m.title)} on ${esc(readableDay(w.finished_on))}. It's deleted in Matinee too.</p>`
+    + `<div class="sheet-actions"><button type="button" class="btn" data-act="delete">Delete</button>`
+    + `<button type="button" class="btn btn-quiet" data-act="cancel">Cancel</button></div>`,
+    from, async target => {
+      const act = target.closest("[data-act]")?.dataset.act;
+      if (act === "cancel") return closeContinueSheet();
+      if (act !== "delete") return;
+      for (const b of document.querySelectorAll("#watched-delete button")) b.disabled = true;
+      try {
+        m.watched = (await api(`/api/viewings/${viewingId}`, { method: "DELETE" })).watched;
+      } catch (e) {
+        closeContinueSheet();
+        toast(`Couldn't delete it: ${e.message}`);
+        return;
+      }
+      closeContinueSheet();
+      redrawWatched(m);
+      toast("Viewing deleted.");
+      const back = document.querySelector("#detail-watched .watched-delete") || document.getElementById("detail-rate");
+      if (back) back.focus();
+    });
+}
+
+// After a finish the new viewing joins the Watched list.
+async function reloadWatched(m) {
+  try {
+    m.watched = (await api(`/api/movies/${m.id}`)).watched;
+  } catch {
+    return;   // the list is right again on the next visit
+  }
+  redrawWatched(m);
+}
+
 function redrawTonight(m) {
   const box = document.getElementById("detail-tonight-box");
   if (box && box.isConnected && Number(location.hash.split("/")[2]) === m.id) box.innerHTML = tonightHtml(m);
@@ -146,6 +230,7 @@ async function tonightAction(m, which, button) {
   if (v) m.viewing = v.status === "finished" || v.status === "abandoned" ? null : v;
   if (button.isConnected) button.disabled = false;
   redrawTonight(m);
+  if (v?.status === "finished") reloadWatched(m);
 }
 
 const SETTLED = { ours: "Sent ours to Matinee.", matinee: "Using Matinee's rating.", dismiss: "Left as it is." };
@@ -206,6 +291,8 @@ async function showDetail(id) {
     if (tonight) tonightAction(m, tonight.id.slice("detail-".length), tonight);
     const rate = e.target.closest("#detail-rate");
     if (rate) openRatingSheet(m, rate, saved => ratingsSaved(m, saved));
+    const del = e.target.closest(".watched-delete");
+    if (del) confirmDelete(m, Number(del.dataset.viewing), del);
     const choice = e.target.closest("[data-choice]");
     if (choice) settleConflict(m, choice.dataset.choice, choice);
   });
