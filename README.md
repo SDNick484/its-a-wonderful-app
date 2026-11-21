@@ -56,8 +56,9 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
 - **People and ratings.** **Settings → People** lists the family: they are copied from Matinee by name (kind, colour
   and order too) the first time the app needs them, and again with **Sync people from Matinee**; **Add someone** adds
   a person who lives only here (a visitor), who rates like everyone else and is not sent to Matinee. On a movie's
-  detail view, **Rate it** opens a sheet with one row per person: number buttons **1** to **10** and a **½** (8, then
-  ½, is 8.5; tap the same value again to clear it; anyone can be left unrated), then **Done**. Ratings are 0 to 10 in
+  detail view, **Rate it** opens a sheet with one row per person: a slider from 0 to 10 in half steps, as in Matinee
+  (someone not rated yet shows "–" and a dimmed slider resting on 7 until it is touched; **Clear** leaves them
+  unrated), then **Done**. Ratings are 0 to 10 in
   half steps (7.3 or 11 is refused). The family rating is the mean to one decimal (8, 9, 10, 8, 8 is **8.6**); it shows
   as **★ 8.6** on the poster and as a row of coloured dots with each person's rating on the detail view. Clear the last
   rating and the family rating goes away. While Matinee holds the rating of a movie it owns and nobody has rated here,
@@ -81,8 +82,12 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   finished**, its details, or **We gave up on it** (off the row, nothing sent anywhere). A paused movie says how far
   along it is: **Just started** (under 25 %), **About halfway** (25 to 75 %) or **Almost done**. When the TV stopped
   a movie, the next open asks **Did you finish *Home Alone*?** with **Yes**, **Not yet** and
-  "We gave up on it": the app's guess is highlighted but still needs a tap. After **We finished** or **Yes**: "Want to
-  rate it?" (**Rate** opens the rating sheet with the people who watched first; **Skip**).
+  "We gave up on it": the app's guess is highlighted but still needs a tap. After **We finished** or **Yes** the
+  rating sheet opens by itself, with the people who watched first (close it to rate nobody).
+- **Watched.** A movie's detail view lists each time it was finished, newest first: the date, how long ago, and dots
+  for who watched. **✕** deletes one logged by mistake (it asks first), here and in Matinee, so the Calendar and **Not
+  watched this year** follow. If Matinee can't be reached nothing is deleted (try again later); a watch Matinee never
+  got is only deleted here. Home Assistant's movie log keeps its entry.
 - **Finishing tells Matinee and Home Assistant.** A finished movie Matinee owns is logged there once as a watch, dated
   the day it finished (the last TV night, or today), with the people who watched and whom Matinee knows (a visitor is
   left out); the app never asks Matinee to tell Home Assistant. Every finished movie, owned or not, is posted once to
@@ -94,7 +99,8 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   **Not watched this year**.
   API: `POST /api/movies/<id>/tonight` (`{"people": [ids]}` optional), `GET /api/continue`, `GET /api/prompt`,
   `POST /api/viewings/<id>/keep`, `…/not-yet`, `…/finish` (`{"finished_on": "2026-12-12"}` optional; a second finish
-  is a 409), `…/abandon`.
+  is a 409), `…/abandon`, `DELETE /api/viewings/<id>` (a finished viewing and its Matinee watch; 502 when Matinee
+  can't delete it).
 - **Settings → Subscriptions** (the gear in the header). Each streaming service is **Subscribed**, **Considering** or
   **Ignore**, and every card follows at once. Starting statuses: Netflix, Disney+, Hulu, Prime Video, Fandango at
   Home and YouTube TV subscribed; HBO Max, Peacock, Paramount+ and Apple TV considering. The list, each service's

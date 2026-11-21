@@ -1,4 +1,4 @@
-"""Playwright at phone size (412 and 360 px): the rating sheet (number buttons 1-10 and ½, 44 px or more, two rows),
+"""Playwright at phone size (412 and 360 px): the rating sheet (a 0-10 slider per person in half steps, as in Matinee),
 rating a movie for everyone, the star on the poster and the dot row on the detail view, and Settings -> People. Run by the
 ui-smoke job (REQUIRE_UI=1). TMDB is answered from recorded fixtures; the people have made-up names."""
 import pytest
@@ -38,9 +38,21 @@ def _rate_sheet(page):
     page.wait_for_selector(".rate-row")
 
 
-def _tap(page, person, label):
-    """Tap the number (or ½) button in a person's row."""
-    page.locator(f".rate-row:has-text('{person}') .rate-btn", has_text=label).first.click()
+def _row(page, person):
+    return page.locator(f".rate-row:has-text('{person}')")
+
+
+def _slide(page, person, value):
+    """Move a person's slider to `value` (what a drag does: the value changes and the input event fires)."""
+    _row(page, person).locator(".rate-slider").fill(str(value))
+
+
+def _clear(page, person):
+    _row(page, person).locator(".rate-clear").click()
+
+
+def _val(page, person):
+    return _row(page, person).locator(".rate-val").inner_text()
 
 
 def _toast(page, text):
@@ -48,23 +60,23 @@ def _toast(page, text):
 
 
 @pytest.mark.parametrize("viewport", [PHONE, SMALL_PHONE], ids=["412px", "360px"])
-def test_rating_sheet_buttons_are_big_and_wrap_to_two_rows(browser, seeded, viewport):   # noqa: F811
+def test_rating_sheet_has_a_big_slider_per_person(browser, seeded, viewport):   # noqa: F811
     page, errors = _open(browser, seeded, viewport)
     _rate_sheet(page)
     assert page.locator(".rate-row").count() == 5
     for row in range(5):
-        boxes = page.locator(".rate-row").nth(row).locator(".rate-btn").evaluate_all(
-            "els => els.map(e => { const r = e.getBoundingClientRect(); return [r.top, r.width, r.height, r.right]; })")
-        assert len(boxes) == 11
-        assert all(w >= 44 and h >= 44 for _top, w, h, _r in boxes), boxes
-        assert len({round(top) for top, *_ in boxes}) == 2                       # 1-10 and ½ wrap onto two lines
-        assert max(b[3] for b in boxes) <= viewport["width"]
-    labels = page.locator(".rate-row").first.locator(".rate-btn").evaluate_all("els => els.map(e => e.textContent)")
-    assert labels == [str(n) for n in range(1, 11)] + ["½"]
+        slider = page.locator(".rate-row").nth(row).locator(".rate-slider")
+        box = slider.bounding_box()
+        assert box["height"] >= 44 and box["x"] + box["width"] <= viewport["width"], box
+        assert [slider.get_attribute(a) for a in ("min", "max", "step")] == ["0", "10", "0.5"]
+    assert page.locator(".rate-row-unset").count() == 5                          # nobody rated: all dimmed, "–"
+    assert _val(page, "Avery") == "–" and page.locator(".rate-clear:visible").count() == 0
     assert _side_scroll(page) <= 0 and _height(page, "#rate-done") >= 44 and errors == []
     assert page.evaluate("document.querySelector('.sheet-panel').scrollWidth <= document.querySelector('.sheet-panel').clientWidth")
-    _tap(page, "Avery", "8")
-    for sel in (".rate-btn", ".rate-btn[aria-pressed=true]", ".rate-hint", ".rate-name", ".rate-val"):
+    _slide(page, "Avery", 8)
+    shown = ".rate-clear:not([hidden])"
+    assert page.locator(shown).count() == 1 and _height(page, shown) >= 44
+    for sel in (".rate-hint", ".rate-name", ".rate-val", shown):
         page.evaluate("(s) => { const e = document.querySelector(s);"
                       " if (!getComputedStyle(e).backgroundColor.match(/[1-9]/)) e.style.backgroundColor = '#16161c'; }", sel)
         assert _contrast(page, sel) >= 4.5, sel
@@ -72,14 +84,27 @@ def test_rating_sheet_buttons_are_big_and_wrap_to_two_rows(browser, seeded, view
         assert _contrast(page, f".dot[data-color={color}]") >= 4.5, color
 
 
+def test_a_tap_on_the_slider_rates(browser, seeded):   # noqa: F811
+    page, _ = _open(browser, seeded, PHONE)
+    _rate_sheet(page)
+    slider = _row(page, "Avery").locator(".rate-slider")
+    slider.click()                                                                # the middle of the strip is 5
+    assert _val(page, "Avery") == "5" and page.locator(".rate-row-unset").count() == 4
+    blake = _row(page, "Blake").locator(".rate-slider")
+    box = blake.bounding_box()
+    blake.click(position={"x": box["width"] * 0.7, "y": box["height"] / 2})     # where an unrated thumb rests
+    assert _val(page, "Blake") == "7"
+    page.keyboard.press("ArrowRight")                                             # half steps from the keyboard too
+    assert _val(page, "Blake") == "7.5"
+
+
 def test_rate_a_movie_for_everyone(browser, seeded):   # noqa: F811
     page, errors = _open(browser, seeded, PHONE)
     assert page.locator(".movie-card .star").count() == 0                       # nothing to show yet
     _rate_sheet(page)
     for person, n in zip(("Avery", "Blake", "Casey", "Drew", "Emery"), (8, 9, 10, 8, 8)):
-        _tap(page, person, str(n))
-    assert page.locator(".rate-row:has-text('Avery') .rate-val").inner_text() == "8"
-    assert page.locator(".rate-row:has-text('Avery') .rate-btn[aria-pressed=true]").inner_text() == "8"
+        _slide(page, person, n)
+    assert _val(page, "Avery") == "8" and page.locator(".rate-row-unset").count() == 0
     page.click("#rate-done")
     _toast(page, "Ratings saved")
     assert not page.is_visible(".sheet-panel")
@@ -103,25 +128,22 @@ def test_rate_a_movie_for_everyone(browser, seeded):   # noqa: F811
 def test_half_steps_and_clearing(browser, seeded):   # noqa: F811
     page, _ = _open(browser, seeded, PHONE)
     _rate_sheet(page)
-    _tap(page, "Avery", "8")
-    _tap(page, "Avery", "½")
-    assert page.locator(".rate-row:has-text('Avery') .rate-val").inner_text() == "8.5"
-    assert page.locator(".rate-row:has-text('Avery') .rate-btn[aria-pressed=true]").count() == 2     # the 8 and the ½
-    _tap(page, "Blake", "½")                                                                          # ½ alone is 0.5
-    assert page.locator(".rate-row:has-text('Blake') .rate-val").inner_text() == "0.5"
-    _tap(page, "Blake", "½")                                                                          # and off again: unrated
-    assert page.locator(".rate-row:has-text('Blake') .rate-val").inner_text() == "–"
-    _tap(page, "Casey", "10")
-    _tap(page, "Casey", "½")                                                                          # nothing above 10
-    assert page.locator(".rate-row:has-text('Casey') .rate-val").inner_text() == "10"
+    _slide(page, "Avery", 8.5)
+    assert _val(page, "Avery") == "8.5"
+    _slide(page, "Blake", 0.5)
+    assert _val(page, "Blake") == "0.5"
+    _clear(page, "Blake")                                                         # Clear: unrated again
+    assert _val(page, "Blake") == "–" and _row(page, "Blake").get_attribute("class").endswith("rate-row-unset")
+    _slide(page, "Casey", 10)
+    assert _val(page, "Casey") == "10"
     page.click("#rate-done")
     _toast(page, "Ratings saved")
-    assert page.inner_text("#detail-rating-head") == "★ 9.3 family"                                    # (8.5 + 10) / 2 = 9.25, ties up
-    page.click("#detail-rate")                                                                         # tapping the same value clears it
-    _tap(page, "Avery", "8")                                                                           # 8 with the half on is 8.5: the same
-    _tap(page, "Casey", "10")
-    assert page.locator(".rate-row:has-text('Avery') .rate-val").inner_text() == "–"
-    assert page.locator(".rate-row:has-text('Casey') .rate-val").inner_text() == "–"
+    assert page.inner_text("#detail-rating-head") == "★ 9.3 family"                # (8.5 + 10) / 2 = 9.25, ties up
+    page.click("#detail-rate")
+    page.wait_for_selector(".rate-row")
+    assert _val(page, "Avery") == "8.5" and _row(page, "Avery").locator(".rate-slider").input_value() == "8.5"
+    _clear(page, "Avery")
+    _clear(page, "Casey")
     page.click("#rate-done")
     page.wait_for_function("document.getElementById('detail-rating-head').textContent === 'Nobody has rated it yet.'")
 
@@ -133,7 +155,8 @@ def test_clearing_every_rating_leaves_no_star(browser, seeded):   # noqa: F811
     page, _ = _open(browser, seeded, PHONE)
     assert page.locator(".movie-card", has_text="Elf").locator(".star").inner_text() == "★ 8.0"
     _rate_sheet(page)
-    _tap(page, "Avery", "8")                                         # the same value again clears it
+    assert _val(page, "Avery") == "8"
+    _clear(page, "Avery")
     page.click("#rate-done")
     _toast(page, "Ratings saved")
     assert page.inner_text("#detail-rating-head") == "Nobody has rated it yet." and page.inner_text("#detail-rate") == "Rate it"
@@ -144,7 +167,7 @@ def test_clearing_every_rating_leaves_no_star(browser, seeded):   # noqa: F811
 def test_the_sheet_closes_without_saving(browser, seeded):   # noqa: F811
     page, _ = _open(browser, seeded, PHONE)
     _rate_sheet(page)
-    _tap(page, "Avery", "7")
+    _slide(page, "Avery", 7)
     page.keyboard.press("Escape")
     assert not page.is_visible(".sheet-panel")
     assert page.inner_text("#detail-rating-head") == "Nobody has rated it yet."

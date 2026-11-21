@@ -1,9 +1,8 @@
 // It's a Wonderful App: ratings. The star on a poster, the dot row on the detail view and the rating sheet (spec §11):
-// one row per person, number buttons 1-10 and a ½ button, 44 px or more each. Imports only core.js; the caller says what
+// one row per person with a 0-10 slider in half steps, as in Matinee. Imports only core.js; the caller says what
 // to do with a saved rating (onSaved), so this module never touches the grid.
 import { api, esc, toast } from "./core.js";
 
-const NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 let rateSheet = null;
 let rateOpener = null;
 
@@ -33,35 +32,26 @@ function dotsHtml(family) {
 }
 
 // ================================================================= the rating sheet
-// Each row's value is a number from 0 to 10 in 0.5 steps, or null (not rated). The ½ button adds a half to the chosen
-// number (8 then ½ is 8.5; ½ alone is 0.5); tapping the same value again clears it, so anyone can be left unrated.
-function nextValue(value, button) {
-  if (button.dataset.half !== undefined) {
-    if (value === null) return 0.5;
-    if (value % 1 !== 0) return value === 0.5 ? null : value - 0.5;
-    return value < 10 ? value + 0.5 : value;
-  }
-  const n = Number(button.dataset.n);
-  const half = value !== null && value % 1 !== 0;
-  const next = half && n < 10 ? n + 0.5 : n;
-  return next === value ? null : next;
-}
+// One slider per person, 0 to 10 in 0.5 steps (as in Matinee). Each value is a number or null (not rated): an unrated
+// row shows "–" and a dimmed slider resting on 7 until someone touches it, and Clear makes it unrated again.
+const RESTING = 7;
 
 function rowHtml(p, dim) {
-  const buttons = NUMBERS.map(n => `<button type="button" class="rate-btn" data-n="${n}" aria-pressed="false">${n}</button>`).join("")
-    + `<button type="button" class="rate-btn" data-half aria-pressed="false" aria-label="and a half">½</button>`;
   return `<div class="rate-row${dim ? " rate-row-dim" : ""}" data-person="${p.person_id}"><div class="rate-who">${dotHtml(p)}`
-    + `<span class="rate-name">${esc(p.name)}</span><span class="rate-val"></span></div>`
-    + `<div class="rate-btns" role="group" aria-label="${esc(p.name)}'s rating">${buttons}</div></div>`;
+    + `<span class="rate-name">${esc(p.name)}</span><span class="rate-val"></span>`
+    + `<button type="button" class="btn btn-quiet rate-clear">Clear</button></div>`
+    + `<input type="range" class="rate-slider" min="0" max="10" step="0.5" aria-label="${esc(p.name)}'s rating"></div>`;
 }
 
 function paintRow(row, value) {
-  const half = value !== null && value % 1 !== 0;
-  for (const b of row.querySelectorAll(".rate-btn")) {
-    const on = b.dataset.half !== undefined ? half : value !== null && Math.floor(value) === Number(b.dataset.n) && value !== 0.5;
-    b.setAttribute("aria-pressed", String(on));
-  }
-  row.querySelector(".rate-val").textContent = ratingText(value);
+  const slider = row.querySelector(".rate-slider");
+  const unset = value === null || value === undefined;
+  slider.value = String(unset ? RESTING : value);
+  slider.setAttribute("aria-valuetext", unset ? "Not rated" : String(value));
+  if (unset) row.classList.add("rate-row-unset");
+  else row.classList.remove("rate-row-unset");
+  row.querySelector(".rate-clear").hidden = unset;
+  row.querySelector(".rate-val").textContent = ratingText(unset ? null : value);
 }
 
 function closeRateSheet() {
@@ -115,26 +105,37 @@ function openRatingSheet(m, from, onSaved, first = null) {
     + `<div class="sheet-head"><h2 id="rate-title" class="sheet-title">Rate ${esc(m.title)}</h2>`
     + `<button type="button" class="icon-btn icon-btn-quiet" data-close aria-label="Close">&times;</button></div>`
     + (people.length
-      ? `<p class="rate-hint">Tap a number. ½ adds a half. Tap it again to clear. Anyone can be left out.</p>${people.map(p => rowHtml(p, dim(p))).join("")}`
+      ? `<p class="rate-hint">Slide to rate. Clear leaves someone out.</p>${people.map(p => rowHtml(p, dim(p))).join("")}`
         + `<div class="rate-actions"><button type="button" class="btn" id="rate-done">Done</button></div>`
       : `<p class="rate-hint">Nobody to rate yet. <a href="#/settings" data-close>Add the family in Settings</a>.</p>`)
     + `</div>`;
   document.body.appendChild(rateSheet);
   for (const row of rateSheet.querySelectorAll(".rate-row")) paintRow(row, now[row.dataset.person]);
+  // a tap on the slider counts even where it already rests (no input event then), so 7 can be given in one tap
+  const slid = e => {
+    const slider = e.target.closest(".rate-slider");
+    if (!slider) return;
+    const row = slider.closest(".rate-row");
+    now[row.dataset.person] = Number(slider.value);
+    paintRow(row, now[row.dataset.person]);
+  };
+  rateSheet.addEventListener("input", slid);
   rateSheet.addEventListener("click", e => {
     if (e.target.closest("[data-close]")) return closeRateSheet();
-    const button = e.target.closest(".rate-btn");
-    if (button) {
-      const row = button.closest(".rate-row");
-      const id = row.dataset.person;
-      now[id] = nextValue(now[id], button);
-      paintRow(row, now[id]);
+    const clear = e.target.closest(".rate-clear");
+    if (clear) {
+      const row = clear.closest(".rate-row");
+      now[row.dataset.person] = null;
+      paintRow(row, null);
+      row.querySelector(".rate-slider").focus();
+    } else if (e.target.closest(".rate-slider")) {
+      slid(e);
     } else if (e.target.closest("#rate-done")) {
       saveRatings(m, before, now, onSaved, e.target.closest("#rate-done"));
     }
   });
   document.addEventListener("keydown", onRateKey);
-  (rateSheet.querySelector(".rate-btn") || rateSheet.querySelector("[data-close]")).focus();
+  (rateSheet.querySelector(".rate-slider") || rateSheet.querySelector("[data-close]")).focus();
 }
 
 export { dotHtml, dotsHtml, openRatingSheet, starText };

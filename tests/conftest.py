@@ -203,6 +203,8 @@ class FakeMatinee:
             return self._json("rating_set.json")
         if m == "POST" and url.path == "/admin/api/titles/1/watches":
             return self._json("watch_added.json")
+        if m == "DELETE" and url.path == "/admin/api/titles/1/watches/3":
+            return self._json("watch_deleted.json")
         raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
 
 
