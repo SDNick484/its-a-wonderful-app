@@ -285,11 +285,13 @@ def api_movie_add():
 def api_movie(movie_id):
     """One movie, with where to watch from the cache and `providers_stale` (the page asks for a refresh when true).
     Ownership is asked of Matinee first when the last answer is over a day old; if Matinee can't answer, the last
-    known ownership is shown with "(as of <date>)"."""
+    known ownership is shown with "(as of <date>)". `today` is the host's date (TZ): the newest date Log date takes,
+    and what the Watched list counts "yesterday" from, whatever the phone's clock says."""
     con = get_db()
     movies.refresh_ownership_if_stale(con, movie_id)
     return jsonify({**_movie_json(con, movies.get_row(con, movie_id)), **providers.movie_providers(con, movie_id),
-                    "viewing": viewings.open_for_movie(con, movie_id), "watched": viewings.watched(con, movie_id)})
+                    "viewing": viewings.open_for_movie(con, movie_id), "watched": viewings.watched(con, movie_id),
+                    "today": today().isoformat()})
 
 
 @app.post("/api/movies/<int:movie_id>/providers/refresh")

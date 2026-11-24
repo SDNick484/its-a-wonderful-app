@@ -577,5 +577,10 @@ def test_log_date_bad_requests_log_nothing(client, fam, monkeypatch, body):
     assert watched(client, fam["klaus"]) == [] and fam["ha"].posts == []
 
 
+def test_detail_carries_the_hosts_date_for_the_date_field(client, fam, monkeypatch):
+    monkeypatch.setattr(app, "today", lambda: TODAY)
+    assert client.get(f"/api/movies/{fam['klaus']}").get_json()["today"] == "2026-12-05"
+
+
 def test_log_date_for_an_unknown_movie_is_404(client, fam):
     assert log_date(client, 999, finished_on="2025-12-20").status_code == 404

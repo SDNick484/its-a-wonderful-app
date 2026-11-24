@@ -66,10 +66,10 @@ function readableDay(iso) {
   return localDay(iso).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 }
 
-// "today", "yesterday", "5 days ago", "3 weeks ago", "2 months ago", "1 year ago".
-function agoText(iso) {
-  const now = new Date();
-  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - localDay(iso)) / 86400000);
+// "today", "yesterday", "5 days ago", "3 weeks ago", "2 months ago", "1 year ago", counted from `today`: the host's
+// date (the movie's `today`), never this phone's clock, which may be in another time zone.
+function agoText(iso, today) {
+  const days = Math.round((localDay(today) - localDay(iso)) / 86400000);
   if (days <= 0) return "today";
   if (days === 1) return "yesterday";
   const [n, unit] = days < 14 ? [days, "day"] : days < 60 ? [Math.floor(days / 7), "week"]
@@ -77,14 +77,8 @@ function agoText(iso) {
   return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
 }
 
-// Today on this phone's clock, "2026-12-05": the newest date the field offers. The server has the last word.
-function todayIso() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-}
-
-// Log date, as in Matinee: Who watched (everyone on until someone is tapped off), a date (today or earlier) and the
-// button. With no family yet there is no Who watched row and the night is logged for nobody.
+// Log date, as in Matinee: Who watched (everyone on until someone is tapped off), a date (the host's today or
+// earlier) and the button. With no family yet there is no Who watched row and the night is logged for nobody.
 function logHtml(m) {
   const people = m.family?.by_person || [];
   const who = people.length
@@ -93,7 +87,7 @@ function logHtml(m) {
       + people.map(p => `<button type="button" class="who-btn" data-person="${p.person_id}" data-color="${esc(p.color)}"`
         + ` aria-pressed="true" aria-label="${esc(p.name)}" title="${esc(p.name)}">${esc(initialOf(p))}</button>`).join("") + `</span></div>`
     : "";
-  return who + `<div class="log-row"><input type="date" id="detail-log-date" class="field" max="${todayIso()}" aria-label="Date watched">`
+  return who + `<div class="log-row"><input type="date" id="detail-log-date" class="field" max="${esc(m.today)}" aria-label="Date watched">`
     + `<button type="button" class="btn btn-quiet" id="detail-log">Log date</button></div>`;
 }
 
@@ -107,7 +101,7 @@ function watchedHtml(m) {
     const names = who.map(p => p.name).join(", ");
     return `<li class="watched-row" data-viewing="${w.viewing_id}">`
       + `<span class="watched-when"><span class="watched-date">${esc(readableDay(w.finished_on))}</span>`
-      + ` <span class="watched-ago">(${esc(agoText(w.finished_on))})</span></span>`
+      + ` <span class="watched-ago">(${esc(agoText(w.finished_on, m.today))})</span></span>`
       + (who.length ? `<span class="watched-who" aria-label="${esc(`Watched by ${names}`)}">${who.map(dotHtml).join("")}</span>` : "")
       + `<button type="button" class="icon-btn icon-btn-quiet watched-delete" data-viewing="${w.viewing_id}"`
       + ` aria-label="${esc(`Delete the viewing on ${readableDay(w.finished_on)}`)}">&times;</button></li>`;
@@ -229,7 +223,9 @@ function confirmDelete(m, viewingId, from) {
 // After a finish the new viewing joins the Watched list.
 async function reloadWatched(m) {
   try {
-    m.watched = (await api(`/api/movies/${m.id}`)).watched;
+    const fresh = await api(`/api/movies/${m.id}`);
+    m.watched = fresh.watched;
+    m.today = fresh.today;
   } catch {
     return;   // the list is right again on the next visit
   }

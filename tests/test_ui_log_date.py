@@ -1,7 +1,10 @@
 """Playwright at phone size (412 and 360 px): Log date on a movie's detail view, for a night nobody logged at the time
 (as in Matinee). The Who watched row has everyone on until someone is tapped off, the date field takes today or
 earlier, and Log date adds the night to the Watched list and opens the rating sheet with those people first. Run by
-the ui-smoke job (REQUIRE_UI=1). TMDB answers from fixtures, Matinee is off, and the people have made-up names."""
+the ui-smoke job (REQUIRE_UI=1). TMDB answers from fixtures, Matinee is off, and the people have made-up names.
+
+The host says it is 2026-12-05, which is never the browser's own date: "today", "yesterday" and the newest date the
+field offers must all come from the host (TZ), not from the phone's clock."""
 import datetime as dt
 
 import pytest
@@ -13,6 +16,12 @@ from test_ui_grid import _contrast, _height, _side_scroll
 from test_ui_smoke import PHONE, SMALL_PHONE, browser, server  # noqa: F401  (fixtures shared with the smoke tests)
 
 NAMES = ["Avery", "Blake", "Casey", "Drew", "Emery"]
+TODAY, LAST_NIGHT = "2026-12-05", "2026-12-04"
+
+
+@pytest.fixture(autouse=True)
+def host_day(monkeypatch):
+    monkeypatch.setattr(app, "today", lambda: dt.date(2026, 12, 5))
 
 
 def _who(name):
@@ -39,13 +48,11 @@ def _viewings():
 
 @pytest.mark.parametrize("viewport", [PHONE, SMALL_PHONE], ids=["412px", "360px"])
 def test_log_last_night_for_the_ones_who_watched(browser, seeded, viewport):   # noqa: F811
-    today = app.today()
-    last_night = (today - dt.timedelta(days=1)).isoformat()
     page, errors, calls = _open(browser, seeded, viewport)
     _elf(page)
     assert page.inner_text("#detail-who .who-label") == "Who watched"
     assert _pressed(page) == NAMES                                                 # everyone, until someone is tapped off
-    assert page.get_attribute("#detail-log-date", "max") == today.isoformat()      # not a night that hasn't happened
+    assert page.get_attribute("#detail-log-date", "max") == TODAY                  # not a night that hasn't happened
     assert page.input_value("#detail-log-date") == "" and page.inner_text("#detail-log") == "Log date"
     for sel in (_who("Avery"), "#detail-log-date", "#detail-log"):
         assert _height(page, sel) >= 44, sel
@@ -60,7 +67,7 @@ def test_log_last_night_for_the_ones_who_watched(browser, seeded, viewport):   #
     for sel in ("#detail-who .who-label", "#detail-log-date", "#detail-log"):
         _solid(page, sel)
         assert _contrast(page, sel) >= 4.5, sel
-    page.fill("#detail-log-date", last_night)
+    page.fill("#detail-log-date", LAST_NIGHT)
     page.click("#detail-log")
     page.wait_for_selector(".rate-row")                                            # the rating sheet, straight away
     names = page.eval_on_selector_all(".rate-row .rate-name", "els => els.map(e => e.textContent)")
@@ -70,7 +77,7 @@ def test_log_last_night_for_the_ones_who_watched(browser, seeded, viewport):   #
     assert page.locator(".watched-row").count() == 1 and page.inner_text(".watched-ago") == "(yesterday)"
     assert page.get_attribute(".watched-who", "aria-label") == "Watched by Blake, Casey, Drew"
     assert ("POST", "api/movies/1/watched") in calls
-    assert _viewings() == [("finished", last_night, [2, 3, 4])]
+    assert _viewings() == [("finished", LAST_NIGHT, [2, 3, 4])]
     assert page.input_value("#detail-log-date") == "" and _pressed(page) == NAMES  # ready for another night
     assert _side_scroll(page) <= 0 and errors == []
 
@@ -90,16 +97,15 @@ def test_log_date_needs_a_date_and_somebody(browser, seeded):   # noqa: F811
 
 
 def test_log_date_finishes_the_movie_waiting_in_continue_watching(browser, seeded):   # noqa: F811
-    last_night = (app.today() - dt.timedelta(days=1)).isoformat()
     with app.app.app_context():
         con = app.get_db()
         viewing_id = app.viewings.watch_tonight(con, 1)
-        con.execute("UPDATE viewings SET status='paused', started_on=?, watched_seconds=600 WHERE id=?", (last_night, viewing_id))
+        con.execute("UPDATE viewings SET status='paused', started_on=?, watched_seconds=600 WHERE id=?", (LAST_NIGHT, viewing_id))
         con.commit()
     page, errors, _ = _open(browser, seeded, PHONE)
     _elf(page)
     assert page.is_visible("#detail-tonight-status")                               # In Continue Watching: Just started.
-    page.fill("#detail-log-date", last_night)
+    page.fill("#detail-log-date", LAST_NIGHT)
     page.click("#detail-log")
     page.wait_for_selector(".rate-row")
     page.keyboard.press("Escape")
@@ -117,9 +123,9 @@ def test_log_date_with_no_family_yet_has_no_who_watched_row(browser, server, tmd
     page, errors, _ = _open(browser, server, PHONE)
     _elf(page)
     assert page.locator("#detail-who").count() == 0
-    page.fill("#detail-log-date", app.today().isoformat())
+    page.fill("#detail-log-date", TODAY)
     page.click("#detail-log")
     _toast(page, "Logged")
     page.wait_for_selector(".watched-row")
-    assert page.inner_text(".watched-ago") == "(today)" and _viewings() == [("finished", app.today().isoformat(), [])]
+    assert page.inner_text(".watched-ago") == "(today)" and _viewings() == [("finished", TODAY, [])]
     assert errors == []
