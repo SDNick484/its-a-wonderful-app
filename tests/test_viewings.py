@@ -458,3 +458,124 @@ def test_only_a_finished_viewing_can_be_deleted(client, fam):
     client.post(f"/api/viewings/{v}/abandon")
     assert client.delete(f"/api/viewings/{v}").status_code == 409
     assert client.delete("/api/viewings/999").status_code == 404
+
+
+# ------------------------------------------------------------------------------------------------ Log date: a night nobody logged
+TODAY = dt.date(2026, 12, 5)
+
+
+def log_date(client, movie_id, **body):
+    r = client.post(f"/api/movies/{movie_id}/watched", json=body or None)
+    join_ha()
+    return r
+
+
+def test_log_date_adds_a_finished_viewing_for_the_people_picked(client, fam):
+    r = log_date(client, fam["klaus"], finished_on="2025-12-20", people=fam["people"][:2])
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    v = body["viewing_id"]
+    assert (body["status"], body["finished_on"], body["people"], body["watch_pending"]) == \
+        ("finished", "2025-12-20", fam["people"][:2], False)
+    assert body["watched"] == [{"viewing_id": v, "finished_on": "2025-12-20", "people": fam["people"][:2],
+                                "watch_pending": False}]
+    assert [w["viewing_id"] for w in watched(client, fam["klaus"])] == [v]         # the detail view reads it back
+    assert client.get("/api/continue").get_json()["viewings"] == []               # never in Continue Watching
+    assert list(client.get("/api/calendar?month=2025-12").get_json()["days"]) == ["2025-12-20"]
+    with app.app.app_context():
+        assert app.randomizer.watched_this_year(app.get_db(), fam["klaus"], 2025)
+    assert watch_posts(fam) == []                                                  # Klaus isn't in Matinee
+
+
+def test_log_date_with_nobody_named_counts_everyone(client, fam):
+    assert log_date(client, fam["klaus"], finished_on="2025-12-20").get_json()["people"] == fam["people"]
+
+
+def test_log_date_sends_matinee_the_watch_dated_that_night(client, fam):
+    r = log_date(client, fam["elf"], finished_on="2025-12-20", people=fam["people"][1:3])
+    assert r.status_code == 200, r.get_json()
+    assert watch_posts(fam) == [("/admin/api/titles/1/watches", {"watched_date": "2025-12-20", "attendees": ["Blake", "Casey"]})]
+    assert vrow(r.get_json()["viewing_id"])["matinee_watch_id"] == 3
+
+
+def test_log_date_tells_home_assistant_only_about_today(client, fam, monkeypatch):
+    monkeypatch.setattr(app, "today", lambda: TODAY)
+    assert log_date(client, fam["klaus"], finished_on="2026-12-04").status_code == 200
+    assert fam["ha"].posts == []                                                   # last night: the movie log is for the day itself
+    assert log_date(client, fam["klaus"], finished_on="2026-12-05").status_code == 200
+    assert [(p["title"], p["watched_date"], p["source"]) for p in fam["ha"].posts] == [("Klaus", "2026-12-05", "wonderful")]
+
+
+@pytest.mark.parametrize("error", ["refused", 502], ids=["refused", "http502"])
+def test_log_date_with_matinee_down_is_logged_and_the_watch_owed(client, fam, monkeypatch, error):
+    up, tried = urllib.request.urlopen, []
+
+    def down(req, timeout=None):
+        if urllib.parse.urlparse(req.full_url).hostname != "movies.example.com":
+            return up(req, timeout=timeout)
+        tried.append(req.full_url)
+        if error == "refused":
+            raise urllib.error.URLError(ConnectionRefusedError())
+        raise urllib.error.HTTPError(req.full_url, error, "Error", {}, None)
+
+    monkeypatch.setattr(urllib.request, "urlopen", down)
+    r = log_date(client, fam["elf"], finished_on="2025-12-20")
+    assert r.status_code == 200 and tried                                          # the app still answers
+    body = r.get_json()
+    assert (body["status"], body["watch_pending"], body["watched"][0]["watch_pending"]) == ("finished", True, True)
+    assert vrow(body["viewing_id"])["matinee_watch_id"] is None
+    monkeypatch.setattr(urllib.request, "urlopen", up)                             # Matinee is back: the nightly retry
+    with app.app.app_context():
+        assert app.viewings.retry_watches(app.get_db()) == (1, 0, 0)
+    assert vrow(body["viewing_id"])["matinee_watch_id"] == 3
+    assert watch_posts(fam) == [("/admin/api/titles/1/watches",
+                                 {"watched_date": "2025-12-20", "attendees": ["Avery", "Blake", "Casey", "Drew", "Emery"]})]
+
+
+def test_log_date_finishes_the_movies_open_viewing_instead_of_adding_a_second(client, fam):
+    v = tonight(client, fam["klaus"])["viewing_id"]
+    sql("UPDATE viewings SET status='paused', started_on='2025-12-20', watched_seconds=3000, guess='not_finished' WHERE id=?", v)
+    assert client.get("/api/prompt").get_json()["prompt"]["viewing_id"] == v       # Did you finish Klaus? is waiting
+    body = log_date(client, fam["klaus"], finished_on="2025-12-20", people=fam["people"][:3]).get_json()
+    assert (body["viewing_id"], body["status"], body["finished_on"]) == (v, "finished", "2025-12-20")
+    assert body["people"] == fam["people"][:3]                                     # the people picked replace the viewing's
+    assert [w["viewing_id"] for w in body["watched"]] == [v]
+    assert client.get("/api/continue").get_json()["viewings"] == []               # off the row
+    assert client.get("/api/prompt").get_json() == {"prompt": None}                # and the question is answered
+
+
+def test_log_date_closes_the_open_viewings_tv_session(client, fam):
+    v = tonight(client, fam["klaus"])["viewing_id"]
+    sql("UPDATE viewings SET status='watching' WHERE id=?", v)
+    sql("INSERT INTO sessions (viewing_id, tv_source, started_at) VALUES (?, 'Netflix', ?)", v,
+        (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ"))
+    assert log_date(client, fam["klaus"], finished_on=app.today().isoformat()).get_json()["viewing_id"] == v
+    with app.app.app_context():
+        s = app.get_db().execute("SELECT * FROM sessions WHERE viewing_id=?", (v,)).fetchone()
+    assert s["ended_at"] and s["end_reason"] == "manual"
+
+
+def test_log_date_before_the_open_viewing_began_leaves_it_open(client, fam, monkeypatch):
+    monkeypatch.setattr(app, "today", lambda: TODAY)
+    v = tonight(client, fam["klaus"])["viewing_id"]                               # picked today, for tonight
+    body = log_date(client, fam["klaus"], finished_on="2026-12-04").get_json()     # and last night's is added
+    assert body["viewing_id"] != v and vrow(v)["status"] == "tonight"
+    assert [w["finished_on"] for w in body["watched"]] == ["2026-12-04"]
+    assert [x["viewing_id"] for x in client.get("/api/continue").get_json()["viewings"]] == [v]
+
+
+@pytest.mark.parametrize("body", [None, {}, {"finished_on": ""}, {"finished_on": "12/20/2025"}, {"finished_on": 20251220},
+                                  {"finished_on": "2026-12-06"},
+                                  {"finished_on": "2025-12-20", "people": []},
+                                  {"finished_on": "2025-12-20", "people": [999]},
+                                  {"finished_on": "2025-12-20", "people": "everyone"}],
+                         ids=["no-body", "no-date", "empty-date", "us-date", "number", "tomorrow", "nobody", "stranger", "not-a-list"])
+def test_log_date_bad_requests_log_nothing(client, fam, monkeypatch, body):
+    monkeypatch.setattr(app, "today", lambda: TODAY)
+    r = client.post(f"/api/movies/{fam['klaus']}/watched", json=body)
+    assert r.status_code == 400 and r.get_json()["error"]
+    assert watched(client, fam["klaus"]) == [] and fam["ha"].posts == []
+
+
+def test_log_date_for_an_unknown_movie_is_404(client, fam):
+    assert log_date(client, 999, finished_on="2025-12-20").status_code == 404

@@ -17,6 +17,8 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /api/movies/<id>/rating-conflict       POST {"choice": "ours" | "matinee" | "dismiss"}: settle "Matinee says 7, we
                     say 8.9" (the family rating is kept in step with Matinee's, sync.py)
   /api/movies/<id>/tonight   POST {"people": [ids]}?: Watch tonight (spec §10.1) -> the viewing
+  /api/movies/<id>/watched   POST {"finished_on": "2026-12-12", "people": [ids]?}: Log date, a night nobody logged at
+                    the time -> the viewing and the movie's Watched list (Matinee gets the watch)
   /api/continue     GET the Continue Watching row; /api/prompt GET the "Did you finish?" question, or null
   /api/viewings/<id>/keep | not-yet | finish | abandon   POST: Keep watching tonight, Not yet, We finished
                     ({"finished_on": "2026-12-12"}?; Matinee gets the watch, Home Assistant the movie log), We gave up
@@ -382,6 +384,19 @@ def api_watch_tonight(movie_id):
     con = get_db()
     viewing_id = viewings.watch_tonight(con, movie_id, _body().get("people"))
     return jsonify(viewings.out(con, viewing_id))
+
+
+@app.post("/api/movies/<int:movie_id>/watched")
+@editor_required
+def api_log_watched(movie_id):
+    """{"finished_on": "YYYY-MM-DD", "people": [person ids]?} -> the viewing (out()) plus "watched", the movie's Watched
+    list. Log date: a night nobody logged at the time becomes a finished viewing on that date (today or earlier) for
+    those people (default: every active person). The movie's open viewing is finished instead when it had begun by
+    then. Matinee gets the watch (watch_pending when it couldn't take it yet); Home Assistant only when it is today."""
+    con = get_db()
+    body = _body()
+    viewing_id = viewings.log_watched(con, movie_id, viewings.parse_finished_on(body.get("finished_on")), body.get("people"))
+    return jsonify(**viewings.out(con, viewing_id), watched=viewings.watched(con, movie_id))
 
 
 @app.get("/api/continue")
