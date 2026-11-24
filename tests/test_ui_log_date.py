@@ -129,3 +129,61 @@ def test_log_date_with_no_family_yet_has_no_who_watched_row(browser, server, tmd
     page.wait_for_selector(".watched-row")
     assert page.inner_text(".watched-ago") == "(today)" and _viewings() == [("finished", TODAY, [])]
     assert errors == []
+
+
+# ------------------------------------------------------------------------------------------------ one page, one movie
+# The detail view once added a click handler on every visit and never took the old ones away, so the second movie's
+# page still answered for the first: each initial toggled twice (nothing seemed to happen) and Log date logged both.
+def _all_viewings():
+    """[(title, status, finished_on, [person ids])] for every viewing, oldest first."""
+    with app.app.app_context():
+        con = app.get_db()
+        return [(v["title"], v["status"], v["finished_on"], [r["person_id"] for r in con.execute(
+            "SELECT person_id FROM viewing_people WHERE viewing_id=? ORDER BY person_id", (v["id"],))])
+            for v in con.execute("SELECT v.id, m.title, v.status, v.finished_on FROM viewings v JOIN movies m ON m.id = v.movie_id"
+                                 " ORDER BY v.id").fetchall()]
+
+
+def _prancer_after_elf(page):
+    _elf(page)
+    page.click("#back-link")
+    page.click(".movie-card >> text=Prancer")
+    page.wait_for_function("document.querySelector('.detail-title')?.textContent === 'Prancer'")
+    page.wait_for_selector("#detail-log")
+
+
+def test_the_second_movie_opened_toggles_once_and_logs_only_itself(browser, seeded):   # noqa: F811
+    page, errors, calls = _open(browser, seeded, PHONE)
+    _prancer_after_elf(page)
+    page.click(_who("Casey"))
+    assert _pressed(page) == ["Avery", "Blake", "Drew", "Emery"]                   # one tap takes Casey off
+    del calls[:]
+    page.fill("#detail-log-date", LAST_NIGHT)
+    page.click("#detail-log")
+    page.wait_for_selector(".rate-row")
+    assert page.inner_text("#rate-title") == "Rate Prancer"
+    page.keyboard.press("Escape")
+    page.wait_for_selector(".sheet", state="detached")
+    assert [c for c in calls if c[0] == "POST"] == [("POST", "api/movies/2/watched")]
+    assert _all_viewings() == [("Prancer", "finished", LAST_NIGHT, [1, 2, 4, 5])]  # Elf's page logged nothing
+    assert errors == []
+
+
+def test_we_finished_on_one_movie_leaves_the_one_opened_before_it_alone(browser, seeded):   # noqa: F811
+    with app.app.app_context():
+        con = app.get_db()
+        elf = app.viewings.watch_tonight(con, 1)
+        con.execute("UPDATE viewings SET status='paused', started_on=?, watched_seconds=600 WHERE id=?", (LAST_NIGHT, elf))
+        con.commit()
+    page, errors, _ = _open(browser, seeded, PHONE)
+    _prancer_after_elf(page)
+    page.click("#detail-tonight")
+    page.wait_for_selector("#detail-finish")
+    page.click("#detail-finish")
+    page.wait_for_selector(".rate-row")
+    assert page.inner_text("#rate-title") == "Rate Prancer"
+    page.keyboard.press("Escape")
+    page.wait_for_selector(".sheet", state="detached")
+    assert _status(elf) == ("paused", None)                                        # Elf is still in Continue Watching
+    assert [(t, s) for t, s, _d, _p in _all_viewings()] == [("Elf", "paused"), ("Prancer", "finished")]
+    assert errors == []

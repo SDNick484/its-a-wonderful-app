@@ -335,8 +335,39 @@ async function removeMovie(m) {
   location.hash = "#/";
 }
 
+// The movie on screen: the one the view's click handler acts on. showDetail sets it with the page it draws.
+let detailMovie = null;
+
+function onDetailClick(e) {
+  const m = detailMovie;
+  if (!m) return;
+  if (e.target.closest("#detail-refresh")) refreshProviders(m, false);
+  const tonight = e.target.closest("#detail-tonight, #detail-keep, #detail-finish");
+  if (tonight) tonightAction(m, tonight.id.slice("detail-".length), tonight);
+  const rate = e.target.closest("#detail-rate");
+  if (rate) openRatingSheet(m, rate, saved => ratingsSaved(m, saved));
+  const who = e.target.closest(".who-btn");
+  if (who) toggleWho(who);
+  const log = e.target.closest("#detail-log");
+  if (log) logDate(m, log);
+  const del = e.target.closest(".watched-delete");
+  if (del) confirmDelete(m, Number(del.dataset.viewing), del);
+  const choice = e.target.closest("[data-choice]");
+  if (choice) settleConflict(m, choice.dataset.choice, choice);
+}
+
+// Once, at start (main.js): the detail view's one click handler and its poster fallback. #detail outlives every
+// movie shown in it, so a handler added per visit would pile up: each tap would then also act on the movies opened
+// earlier (initials toggled back, a date logged for them too).
+function wireDetail() {
+  const box = document.getElementById("detail");
+  watchPosters(box);
+  box.addEventListener("click", onDetailClick);
+}
+
 async function showDetail(id) {
   const box = document.getElementById("detail");
+  detailMovie = null;
   box.innerHTML = `<p class="empty">Loading…</p>`;
   let m;
   try {
@@ -354,28 +385,13 @@ async function showDetail(id) {
     }
   }
   box.innerHTML = detailHtml(m);
-  watchPosters(box);
+  detailMovie = m;
   document.title = `${m.title}: It's a Wonderful App`;
   document.getElementById("detail-save").addEventListener("click", () => saveNote(m, document.getElementById("detail-note").value));
   const select = document.getElementById("detail-cert");
   select.addEventListener("change", () => saveCertification(m, select.value, select));
   document.getElementById("detail-remove").addEventListener("click", () => removeMovie(m));
-  box.addEventListener("click", e => {
-    if (e.target.closest("#detail-refresh")) refreshProviders(m, false);
-    const tonight = e.target.closest("#detail-tonight, #detail-keep, #detail-finish");
-    if (tonight) tonightAction(m, tonight.id.slice("detail-".length), tonight);
-    const rate = e.target.closest("#detail-rate");
-    if (rate) openRatingSheet(m, rate, saved => ratingsSaved(m, saved));
-    const who = e.target.closest(".who-btn");
-    if (who) toggleWho(who);
-    const log = e.target.closest("#detail-log");
-    if (log) logDate(m, log);
-    const del = e.target.closest(".watched-delete");
-    if (del) confirmDelete(m, Number(del.dataset.viewing), del);
-    const choice = e.target.closest("[data-choice]");
-    if (choice) settleConflict(m, choice.dataset.choice, choice);
-  });
   if (m.providers_stale) refreshProviders(m, true);
 }
 
-export { runtimeText, showDetail };
+export { runtimeText, showDetail, wireDetail };
