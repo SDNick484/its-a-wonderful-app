@@ -383,7 +383,7 @@ def test_deleting_a_viewing_deletes_its_matinee_watch_too(client, fam):
     assert vrow(v)["matinee_watch_id"] == 3
     fam["matinee"].calls.clear()
     r = client.delete(f"/api/viewings/{v}")
-    assert r.status_code == 200 and r.get_json() == {"ok": True, "watched": []}
+    assert r.status_code == 200 and (r.get_json()["ok"], r.get_json()["watched"]) == (True, [])
     assert ("DELETE", "/admin/api/titles/1/watches/3", None) in fam["matinee"].calls
     assert ("GET", f"/admin/api/tmdb/{ELF}/owned", None) in fam["matinee"].calls    # Matinee's last watch read again
     assert vrow(v) is None and watched(client, fam["elf"]) == []
@@ -584,3 +584,46 @@ def test_detail_carries_the_hosts_date_for_the_date_field(client, fam, monkeypat
 
 def test_log_date_for_an_unknown_movie_is_404(client, fam):
     assert log_date(client, 999, finished_on="2025-12-20").status_code == 404
+
+
+# ------------------------------------------------------------------------------------------------ watched this year (the greyed cover)
+def this_year(client):
+    return {m["title"]: m["watched_this_year"] for m in client.get("/api/movies").get_json()}
+
+
+def test_the_list_says_which_movies_were_watched_this_year(client, fam, monkeypatch):
+    monkeypatch.setattr(app, "today", lambda: TODAY)
+    assert this_year(client) == {"Elf": False, "Klaus": False}                     # Matinee last saw Elf in 2025
+    assert log_date(client, fam["klaus"], finished_on="2025-12-31").get_json()["watched_this_year"] is False
+    assert this_year(client) == {"Elf": False, "Klaus": False}                     # last year's night doesn't count
+    assert log_date(client, fam["klaus"], finished_on="2026-01-01").get_json()["watched_this_year"] is True
+    assert this_year(client) == {"Elf": False, "Klaus": True}
+    assert client.get(f"/api/movies/{fam['klaus']}").get_json()["watched_this_year"] is True
+    assert client.get(f"/api/movies/{fam['elf']}").get_json()["watched_this_year"] is False
+
+
+def test_a_viewing_still_open_is_not_watched_this_year(client, fam, monkeypatch):
+    monkeypatch.setattr(app, "today", lambda: TODAY)
+    v = tonight(client, fam["klaus"])["viewing_id"]
+    assert this_year(client)["Klaus"] is False
+    finish(client, v)
+    assert this_year(client)["Klaus"] is True
+
+
+def test_a_matinee_watch_this_year_counts_too(client, fam, monkeypatch):
+    monkeypatch.setattr(app, "today", lambda: TODAY)
+    sql("UPDATE matinee_sync SET matinee_last_watch='2026-11-28' WHERE movie_id=?", fam["elf"])
+    assert this_year(client) == {"Elf": True, "Klaus": False}
+
+
+def test_deleting_this_years_only_viewing_takes_the_mark_away(client, fam, monkeypatch):
+    monkeypatch.setattr(app, "today", lambda: TODAY)
+    old = log_date(client, fam["klaus"], finished_on="2025-12-20").get_json()["viewing_id"]
+    first = log_date(client, fam["klaus"], finished_on="2026-12-03").get_json()["viewing_id"]
+    second = log_date(client, fam["klaus"], finished_on="2026-12-04").get_json()["viewing_id"]
+    assert client.delete(f"/api/viewings/{second}").get_json()["watched_this_year"] is True    # the 3rd is still there
+    r = client.delete(f"/api/viewings/{first}")
+    assert r.get_json() == {"ok": True, "watched_this_year": False,
+                            "watched": [{"viewing_id": old, "finished_on": "2025-12-20", "people": fam["people"],
+                                         "watch_pending": False}]}
+    assert this_year(client)["Klaus"] is False
