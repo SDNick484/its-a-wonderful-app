@@ -1,10 +1,11 @@
 // It's a Wonderful App: one movie's detail view (backdrop, overview, runtime, certification, cast, collection, the
-// parent note), Watch tonight / We finished, the family rating (with the notice when Matinee disagrees), the Watched
-// list (each finished viewing, deletable when it was logged by mistake) and Remove.
-import { closeContinueSheet, finishViewing, keepWatching, openContinueSheet, watchTonight } from "./continue.js";
+// parent note), Watch tonight / We finished, the family rating (with the notice when Matinee disagrees), Log date (a
+// night nobody logged at the time, with who watched, as in Matinee), the Watched list (each finished viewing, deletable
+// when it was logged by mistake) and Remove.
+import { closeContinueSheet, finishViewing, keepWatching, loadContinue, openContinueSheet, rateAfterFinish, watchTonight } from "./continue.js";
 import { api, esc, state, toast } from "./core.js";
 import { loadMovies, posterHtml, renderGrid, watchPosters } from "./grid.js";
-import { dotHtml, dotsHtml, openRatingSheet, starText } from "./rating.js";
+import { dotHtml, dotsHtml, initialOf, openRatingSheet, starText } from "./rating.js";
 
 const CERT_CHOICES = ["G", "PG", "PG-13", "R", "NR"];
 
@@ -76,6 +77,26 @@ function agoText(iso) {
   return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
 }
 
+// Today on this phone's clock, "2026-12-05": the newest date the field offers. The server has the last word.
+function todayIso() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+// Log date, as in Matinee: Who watched (everyone on until someone is tapped off), a date (today or earlier) and the
+// button. With no family yet there is no Who watched row and the night is logged for nobody.
+function logHtml(m) {
+  const people = m.family?.by_person || [];
+  const who = people.length
+    ? `<div class="who-row" id="detail-who" role="group" aria-labelledby="detail-who-label">`
+      + `<span class="who-label" id="detail-who-label">Who watched</span><span class="who-btns">`
+      + people.map(p => `<button type="button" class="who-btn" data-person="${p.person_id}" data-color="${esc(p.color)}"`
+        + ` aria-pressed="true" aria-label="${esc(p.name)}" title="${esc(p.name)}">${esc(initialOf(p))}</button>`).join("") + `</span></div>`
+    : "";
+  return who + `<div class="log-row"><input type="date" id="detail-log-date" class="field" max="${todayIso()}" aria-label="Date watched">`
+    + `<button type="button" class="btn btn-quiet" id="detail-log">Log date</button></div>`;
+}
+
 // Each finished viewing, newest first: the date, how long ago, who watched, and ✕ to delete it.
 function watchedHtml(m) {
   const list = m.watched || [];
@@ -105,7 +126,7 @@ function detailHtml(m) {
     + (m.overview ? `<p class="detail-overview">${esc(m.overview)}</p>` : "")
     + `<div id="detail-tonight-box">${tonightHtml(m)}</div>`
     + `<h3 class="detail-label">Ratings</h3><div id="detail-ratings">${ratingsHtml(m)}</div>`
-    + `<h3 class="detail-label">Watched</h3><div id="detail-watched">${watchedHtml(m)}</div>`
+    + `<h3 class="detail-label">Watched</h3><div id="detail-log-box">${logHtml(m)}</div><div id="detail-watched">${watchedHtml(m)}</div>`
     + `<h3 class="detail-label">Where to watch</h3><div id="detail-where-box">${whereHtml(m)}</div>`
     + (m.top_cast.length ? `<h3 class="detail-label">Cast</h3><p class="detail-cast">${m.top_cast.map(esc).join(", ")}</p>` : "")
     + `<h3 class="detail-label"><label for="detail-cert">Certification</label></h3>`
@@ -233,6 +254,54 @@ async function tonightAction(m, which, button) {
   if (v?.status === "finished") reloadWatched(m);
 }
 
+// With every Who watched toggle off there is nobody to log, so the button is off too.
+function syncLog() {
+  const button = document.getElementById("detail-log");
+  const who = document.getElementById("detail-who");
+  if (button) button.disabled = Boolean(who) && !who.querySelector('.who-btn[aria-pressed="true"]');
+}
+
+function toggleWho(who) {
+  who.setAttribute("aria-pressed", who.getAttribute("aria-pressed") === "true" ? "false" : "true");
+  syncLog();
+}
+
+// Log date: the night joins the Watched list (Matinee gets the watch, server side), a viewing of it that was waiting
+// in Continue Watching is the one finished, the form goes back to everyone and no date, and the rating sheet opens
+// with the people who watched first.
+async function logDate(m, button) {
+  const input = document.getElementById("detail-log-date");
+  const day = input.value;
+  if (!day) {
+    toast("Choose a date first.");
+    input.focus();
+    return;
+  }
+  const who = document.getElementById("detail-who");
+  const body = { finished_on: day };
+  if (who) body.people = [...who.querySelectorAll('.who-btn[aria-pressed="true"]')].map(t => Number(t.dataset.person));
+  button.disabled = true;
+  let saved;
+  try {
+    saved = await api(`/api/movies/${m.id}/watched`, { method: "POST", body });
+  } catch (e) {
+    toast(`Couldn't log it: ${e.message}`);
+    syncLog();
+    return;
+  }
+  m.watched = saved.watched;
+  redrawWatched(m);
+  if (m.viewing?.viewing_id === saved.viewing_id) {
+    m.viewing = null;
+    redrawTonight(m);
+    loadContinue();
+  }
+  const box = document.getElementById("detail-log-box");
+  if (box && box.isConnected && Number(location.hash.split("/")[2]) === m.id) box.innerHTML = logHtml(m);
+  toast(`Logged for ${readableDay(day)}.${saved.watch_pending ? " Matinee gets it tonight." : ""}`);
+  rateAfterFinish(saved, rated => ratingsSaved(m, rated));
+}
+
 const SETTLED = { ours: "Sent ours to Matinee.", matinee: "Using Matinee's rating.", dismiss: "Left as it is." };
 
 async function settleConflict(m, choice, button) {
@@ -291,6 +360,10 @@ async function showDetail(id) {
     if (tonight) tonightAction(m, tonight.id.slice("detail-".length), tonight);
     const rate = e.target.closest("#detail-rate");
     if (rate) openRatingSheet(m, rate, saved => ratingsSaved(m, saved));
+    const who = e.target.closest(".who-btn");
+    if (who) toggleWho(who);
+    const log = e.target.closest("#detail-log");
+    if (log) logDate(m, log);
     const del = e.target.closest(".watched-delete");
     if (del) confirmDelete(m, Number(del.dataset.viewing), del);
     const choice = e.target.closest("[data-choice]");

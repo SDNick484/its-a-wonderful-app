@@ -16,10 +16,14 @@ function ratingText(rating) {
   return typeof rating === "number" ? String(rating) : "–";
 }
 
+// "A" for Avery: what stands for a person in a dot or a Who watched toggle.
+function initialOf(person) {
+  return (Array.from(person.name.trim())[0] || "?").toUpperCase();
+}
+
 // The coloured dot with a person's initial. `color` is one of Matinee's palette keys (green, blue, red, pink, purple).
 function dotHtml(person) {
-  const initial = Array.from(person.name.trim())[0] || "?";
-  return `<span class="dot" data-color="${esc(person.color)}" aria-hidden="true">${esc(initial.toUpperCase())}</span>`;
+  return `<span class="dot" data-color="${esc(person.color)}" aria-hidden="true">${esc(initialOf(person))}</span>`;
 }
 
 // The detail view's dot row: "● N 8  ● L 9 …". An unrated person shows a dash.
@@ -138,4 +142,4 @@ function openRatingSheet(m, from, onSaved, first = null) {
   (rateSheet.querySelector(".rate-slider") || rateSheet.querySelector("[data-close]")).focus();
 }
 
-export { dotHtml, dotsHtml, openRatingSheet, starText };
+export { dotHtml, dotsHtml, initialOf, openRatingSheet, starText };
