@@ -1,5 +1,5 @@
-"""Playwright at phone size (412 and 360 px): on the grid, the cover of a movie watched this year is greyed out and the
-card still opens the movie; the words on the card (title, year, the star, a placeholder's title) stay readable; and a
+"""Playwright at phone size (412 and 360 px): on the grid, the cover of a movie watched in the last 45 days is greyed out
+and the card still opens the movie; the words on the card (title, year, the star, a placeholder's title) stay readable; and a
 night logged, finished or deleted on the detail view shows on the card behind it. Run by the ui-smoke job
 (REQUIRE_UI=1). TMDB answers from fixtures. The host says it is 2026-12-05, whatever the browser's clock says."""
 import datetime as dt
@@ -42,7 +42,7 @@ def _color(page, sel):
 
 
 @pytest.mark.parametrize("viewport", [PHONE, SMALL_PHONE], ids=["412px", "360px"])
-def test_a_movie_watched_this_year_has_a_greyed_cover_and_still_opens(browser, seeded, viewport):   # noqa: F811
+def test_a_movie_watched_in_the_last_45_days_has_a_greyed_cover_and_still_opens(browser, seeded, viewport):   # noqa: F811
     with app.app.app_context():
         con = app.get_db()
         app.people.add_person(con, {"name": "Avery", "kind": "adult", "color": "green"})
@@ -52,8 +52,8 @@ def test_a_movie_watched_this_year_has_a_greyed_cover_and_still_opens(browser, s
     assert _greyed(page) == []                                                     # nothing watched yet: no grey covers
     plain = _color(page, _card("The Quiet Reindeer") + " .poster-ph")
     _finished(ELF, "2026-12-04", [])                                               # last night
-    _finished(QUIET, "2026-01-01", [])                                             # New Year's Day: still this year
-    _finished(PRANCER, "2025-12-31", [])                                           # last year: not greyed
+    _finished(QUIET, "2026-10-21", [])                                             # 45 days ago: still greyed
+    _finished(PRANCER, "2026-10-20", [])                                           # 46 days ago: back in colour
     page.reload()
     page.wait_for_function("document.getElementById('grid-empty').textContent !== 'Loading…'")
     page.wait_for_function("[...document.querySelectorAll('.poster-img')].every(i => i.complete)")
@@ -61,7 +61,7 @@ def test_a_movie_watched_this_year_has_a_greyed_cover_and_still_opens(browser, s
     opacity, filtered = _drawn(page, _card("Elf") + " .poster-img")
     assert opacity <= 0.6 and filtered                                             # the cover: dimmed, and drained of colour
     assert _drawn(page, _card("Prancer") + " .poster-img") == [1, False]
-    assert page.get_attribute(_card("Elf"), "aria-label") == "Elf (2003), watched this year"
+    assert page.get_attribute(_card("Elf"), "aria-label") == "Elf (2003), watched recently"
     assert page.get_attribute(_card("Prancer"), "aria-label") == "Prancer (1989)"
     for part in (" .card-title", " .card-year", " .star"):                         # the words are not greyed with it
         assert _drawn(page, _card("Elf") + part) == [1, False], part

@@ -192,11 +192,11 @@ function redrawWatched(m) {
 }
 
 // The Watched list changed (a night logged, finished or deleted; `saved` has the new `watched` and
-// `watched_this_year`): redraw it, and grey or clear the cover on the card behind this screen.
+// `watched_recently`): redraw it, and grey or clear the cover on the card behind this screen.
 function watchedSaved(m, saved) {
   m.watched = saved.watched;
-  m.watched_this_year = saved.watched_this_year;
-  keepInState({ id: m.id, watched_this_year: saved.watched_this_year });
+  m.watched_recently = saved.watched_recently;
+  keepInState({ id: m.id, watched_recently: saved.watched_recently });
   redrawWatched(m);
   renderGrid();
 }
