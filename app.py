@@ -251,16 +251,12 @@ def api_calendar():
     return jsonify(watched_days.month_view(get_db(), request.args.get("month")))
 
 
-def _watched_this_year(con, movie_id):
-    """True when the movie was watched in the host's calendar year: the rule behind "Not watched this year" (a finished
-    viewing here, or Matinee's newest watch of an owned movie)."""
-    return randomizer.watched_this_year(con, movie_id, today().year)
-
-
 def _movie_json(con, row):
     """movie_out plus the rating fields: family_rating and rating_source (what the poster shows, spec §8.2) and
-    `family` {mean, by_person} for the detail view; and `watched_this_year`, which greys the poster on the grid."""
-    return {**movies.movie_out(row), **ratings.out(con, row["id"]), "watched_this_year": _watched_this_year(con, row["id"])}
+    `family` {mean, by_person} for the detail view; and `watched_recently` (in the last 45 days), which greys the
+    poster on the grid."""
+    return {**movies.movie_out(row), **ratings.out(con, row["id"]),
+            "watched_recently": viewings.watched_recently(con, row["id"])}
 
 
 @app.get("/api/movies")
@@ -398,14 +394,14 @@ def api_watch_tonight(movie_id):
 @editor_required
 def api_log_watched(movie_id):
     """{"finished_on": "YYYY-MM-DD", "people": [person ids]?} -> the viewing (out()) plus "watched", the movie's Watched
-    list, and "watched_this_year". Log date: a night nobody logged at the time becomes a finished viewing on that date (today or earlier) for
+    list, and "watched_recently". Log date: a night nobody logged at the time becomes a finished viewing on that date (today or earlier) for
     those people (default: every active person). The movie's open viewing is finished instead when it had begun by
     then. Matinee gets the watch (watch_pending when it couldn't take it yet); Home Assistant only when it is today."""
     con = get_db()
     body = _body()
     viewing_id = viewings.log_watched(con, movie_id, viewings.parse_finished_on(body.get("finished_on")), body.get("people"))
     return jsonify(**viewings.out(con, viewing_id), watched=viewings.watched(con, movie_id),
-                   watched_this_year=_watched_this_year(con, movie_id))
+                   watched_recently=viewings.watched_recently(con, movie_id))
 
 
 @app.get("/api/continue")
@@ -465,12 +461,13 @@ def api_viewing_abandon(viewing_id):
 @editor_required
 def api_viewing_delete(viewing_id):
     """Delete a finished viewing and its Matinee watch -> {"ok": true, "watched": the movie's Watched list,
-    "watched_this_year": whether its poster stays greyed}. 502 (and nothing deleted) when Matinee can't delete the
+    "watched_recently": whether its poster stays greyed}. 502 (and nothing deleted) when Matinee can't delete the
     watch; 409 for a viewing that isn't finished."""
     con = get_db()
     movie_id = viewings.get_row(con, viewing_id)["movie_id"]
     viewings.delete(con, viewing_id)
-    return jsonify(ok=True, watched=viewings.watched(con, movie_id), watched_this_year=_watched_this_year(con, movie_id))
+    return jsonify(ok=True, watched=viewings.watched(con, movie_id),
+                   watched_recently=viewings.watched_recently(con, movie_id))
 
 
 @app.get("/api/services")

@@ -586,44 +586,59 @@ def test_log_date_for_an_unknown_movie_is_404(client, fam):
     assert log_date(client, 999, finished_on="2025-12-20").status_code == 404
 
 
-# ------------------------------------------------------------------------------------------------ watched this year (the greyed cover)
-def this_year(client):
-    return {m["title"]: m["watched_this_year"] for m in client.get("/api/movies").get_json()}
+# ------------------------------------------------------------------------------------------------ watched lately (the greyed cover)
+# The host says it is 2026-12-05 (TODAY): 45 days back is 2026-10-21, the oldest night that still greys a cover.
+def lately(client):
+    return {m["title"]: m["watched_recently"] for m in client.get("/api/movies").get_json()}
 
 
-def test_the_list_says_which_movies_were_watched_this_year(client, fam, monkeypatch):
+def test_the_list_says_which_movies_were_watched_in_the_last_45_days(client, fam, monkeypatch):
     monkeypatch.setattr(app, "today", lambda: TODAY)
-    assert this_year(client) == {"Elf": False, "Klaus": False}                     # Matinee last saw Elf in 2025
-    assert log_date(client, fam["klaus"], finished_on="2025-12-31").get_json()["watched_this_year"] is False
-    assert this_year(client) == {"Elf": False, "Klaus": False}                     # last year's night doesn't count
-    assert log_date(client, fam["klaus"], finished_on="2026-01-01").get_json()["watched_this_year"] is True
-    assert this_year(client) == {"Elf": False, "Klaus": True}
-    assert client.get(f"/api/movies/{fam['klaus']}").get_json()["watched_this_year"] is True
-    assert client.get(f"/api/movies/{fam['elf']}").get_json()["watched_this_year"] is False
+    assert lately(client) == {"Elf": False, "Klaus": False}                        # Matinee last saw Elf in 2025
+    assert log_date(client, fam["klaus"], finished_on="2026-01-01").get_json()["watched_recently"] is False
+    assert log_date(client, fam["klaus"], finished_on="2026-10-20").get_json()["watched_recently"] is False
+    assert lately(client) == {"Elf": False, "Klaus": False}                        # this year, but 46 days ago
+    with app.app.app_context():
+        assert app.randomizer.watched_this_year(app.get_db(), fam["klaus"], 2026)  # the chip still goes by the year
+    assert log_date(client, fam["klaus"], finished_on="2026-10-21").get_json()["watched_recently"] is True
+    assert lately(client) == {"Elf": False, "Klaus": True}                         # 45 days ago: still greyed
+    assert client.get(f"/api/movies/{fam['klaus']}").get_json()["watched_recently"] is True
+    assert client.get(f"/api/movies/{fam['elf']}").get_json()["watched_recently"] is False
 
 
-def test_a_viewing_still_open_is_not_watched_this_year(client, fam, monkeypatch):
+def test_the_45_days_run_on_into_the_new_year(client, fam, monkeypatch):
+    monkeypatch.setattr(app, "today", lambda: TODAY)
+    log_date(client, fam["klaus"], finished_on="2026-12-04")
+    monkeypatch.setattr(app, "today", lambda: dt.date(2027, 1, 18))                # 45 days after Dec 4
+    assert lately(client)["Klaus"] is True                                         # January 1 doesn't clear it
+    monkeypatch.setattr(app, "today", lambda: dt.date(2027, 1, 19))
+    assert lately(client)["Klaus"] is False
+
+
+def test_a_viewing_still_open_does_not_grey_the_cover(client, fam, monkeypatch):
     monkeypatch.setattr(app, "today", lambda: TODAY)
     v = tonight(client, fam["klaus"])["viewing_id"]
-    assert this_year(client)["Klaus"] is False
+    assert lately(client)["Klaus"] is False
     finish(client, v)
-    assert this_year(client)["Klaus"] is True
+    assert lately(client)["Klaus"] is True
 
 
-def test_a_matinee_watch_this_year_counts_too(client, fam, monkeypatch):
+def test_a_matinee_watch_in_the_last_45_days_counts_too(client, fam, monkeypatch):
     monkeypatch.setattr(app, "today", lambda: TODAY)
-    sql("UPDATE matinee_sync SET matinee_last_watch='2026-11-28' WHERE movie_id=?", fam["elf"])
-    assert this_year(client) == {"Elf": True, "Klaus": False}
+    sql("UPDATE matinee_sync SET matinee_last_watch='2026-10-20' WHERE movie_id=?", fam["elf"])
+    assert lately(client) == {"Elf": False, "Klaus": False}
+    sql("UPDATE matinee_sync SET matinee_last_watch='2026-10-21' WHERE movie_id=?", fam["elf"])
+    assert lately(client) == {"Elf": True, "Klaus": False}
 
 
-def test_deleting_this_years_only_viewing_takes_the_mark_away(client, fam, monkeypatch):
+def test_deleting_the_only_recent_viewing_takes_the_mark_away(client, fam, monkeypatch):
     monkeypatch.setattr(app, "today", lambda: TODAY)
-    old = log_date(client, fam["klaus"], finished_on="2025-12-20").get_json()["viewing_id"]
+    old = log_date(client, fam["klaus"], finished_on="2026-10-20").get_json()["viewing_id"]
     first = log_date(client, fam["klaus"], finished_on="2026-12-03").get_json()["viewing_id"]
     second = log_date(client, fam["klaus"], finished_on="2026-12-04").get_json()["viewing_id"]
-    assert client.delete(f"/api/viewings/{second}").get_json()["watched_this_year"] is True    # the 3rd is still there
+    assert client.delete(f"/api/viewings/{second}").get_json()["watched_recently"] is True     # the 3rd is still there
     r = client.delete(f"/api/viewings/{first}")
-    assert r.get_json() == {"ok": True, "watched_this_year": False,
-                            "watched": [{"viewing_id": old, "finished_on": "2025-12-20", "people": fam["people"],
+    assert r.get_json() == {"ok": True, "watched_recently": False,
+                            "watched": [{"viewing_id": old, "finished_on": "2026-10-20", "people": fam["people"],
                                          "watch_pending": False}]}
-    assert this_year(client)["Klaus"] is False
+    assert lately(client)["Klaus"] is False

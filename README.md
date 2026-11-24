@@ -20,11 +20,11 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   parents, and **Remove from our list** (asks first; its ratings and viewings go with it). Posters are downloaded
   once to `$DATA_DIR/posters/`; a missing poster shows a titled placeholder. Adding needs `TMDB_READ_TOKEN`.
   API: `GET /api/tmdb/search?q=`, `GET`/`POST /api/movies`, `GET`/`PUT`/`DELETE /api/movies/<id>`.
-- **Watched this year.** On the grid, the cover of a movie we already watched this year is greyed out; the card
-  still opens it, and its title, year and star stay as readable as ever. It is the rule behind **Not watched this
-  year** (a finished viewing here, or a Matinee watch, in the calendar year on the host's `TZ`), so finishing,
-  logging or deleting a night changes the cover straight away, and every cover is back in colour on January 1.
-  Each movie in the API carries it as `watched_this_year`.
+- **Watched lately.** On the grid, the cover of a movie we watched in the last 45 days is greyed out; the card
+  still opens it, and its title, year and star stay as readable as ever. A finished viewing here or a Matinee watch
+  counts, by the host's date (`TZ`): today through the night 45 days ago. Finishing, logging or deleting a night
+  changes the cover straight away, and a cover is back in colour on day 46. (The **Not watched this year** chip still
+  goes by the calendar year.) Each movie in the API carries it as `watched_recently`.
 - **Search.** The box above the grid filters the list as you type, by title, year, actor or collection (no network).
   Enter shows an exact title on its own (`elf` → *Elf*; "The" and punctuation don't count). Anything else is **smart
   search** when `ANTHROPIC_API_KEY` is set: one call to the model asks which movies on our list fit ("a movie about

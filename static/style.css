@@ -253,7 +253,7 @@ main {
   line-height: 1.25;
 }
 
-/* Watched this year: the cover is greyed out (the card still opens the movie). Only the cover: the title, the year
+/* Watched in the last 45 days: the cover is greyed out (the card still opens the movie). Only the cover: the title, the year
    and the star keep their contrast, and a placeholder's title steps down to --ink-3, which still clears 4.5:1. */
 .movie-card.watched .poster-img {
   filter: grayscale(1);

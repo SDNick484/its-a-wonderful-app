@@ -45,6 +45,7 @@ FINISHED_SHARE = 0.85             # watched this much of the runtime: the guess 
 OVERTIME = dt.timedelta(minutes=60)          # a session open longer than runtime + this is closed (spec §10.2)
 UNKNOWN_RUNTIME = dt.timedelta(minutes=180)  # ... and with no runtime, open longer than this + OVERTIME (4 hours)
 SOURCE = "wonderful"              # the `source` key of the movie-log event, so HA can tell it from Matinee's own
+RECENT_DAYS = 45                  # watched this many days ago or less: the grid greys the movie's cover
 
 
 # ------------------------------------------------------------------------------------------------ helpers
@@ -578,6 +579,19 @@ def watched(con, movie_id):
                        " ORDER BY finished_on DESC, id DESC", (movie_id,)).fetchall()
     return [{"viewing_id": r["id"], "finished_on": r["finished_on"], "people": _people_of(con, r["id"]),
              "watch_pending": watch_pending(con, r["id"])} for r in rows]
+
+
+def watched_recently(con, movie_id, days=RECENT_DAYS):
+    """True when the movie was watched in the last `days` days by the host's date (today counts, and so does the night
+    exactly `days` days ago): a `finished` viewing dated then, or Matinee's newest watch of an owned movie
+    (matinee_last_watch). The grid greys such a cover. It rolls on through New Year, unlike "Not watched this year"
+    (randomizer.watched_this_year), which goes by the calendar year."""
+    since = (today() - dt.timedelta(days=days)).isoformat()
+    if con.execute("SELECT 1 FROM viewings WHERE movie_id=? AND status='finished' AND finished_on>=? LIMIT 1",
+                   (movie_id, since)).fetchone() is not None:
+        return True
+    sync = con.execute("SELECT matinee_last_watch FROM matinee_sync WHERE movie_id=?", (movie_id,)).fetchone()
+    return sync is not None and (sync["matinee_last_watch"] or "") >= since
 
 
 def continue_watching(con):
