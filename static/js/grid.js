@@ -27,10 +27,11 @@ function starHtml(m) {
   return text ? `<span class="star" data-source="${esc(m.rating_source)}" aria-label="Rated ${m.family_rating.toFixed(1)}">${text}</span>` : "";
 }
 
+// A movie watched this year gets a greyed cover (class `watched`, style.css); the card still opens it.
 function cardHtml(m) {
-  const label = m.year ? `${m.title} (${m.year})` : m.title;
+  const label = (m.year ? `${m.title} (${m.year})` : m.title) + (m.watched_this_year ? ", watched this year" : "");
   const first = (m.where_to_watch || [])[0];   // the best place to watch it (spec §7.2)
-  return `<a class="movie-card" href="#/m/${m.id}" aria-label="${esc(label)}">`
+  return `<a class="movie-card${m.watched_this_year ? " watched" : ""}" href="#/m/${m.id}" aria-label="${esc(label)}">`
     + `<div class="poster-wrap">${posterHtml(m)}<span class="rating-slot">${starHtml(m)}</span></div>`
     + `<div class="card-title">${esc(m.title)}</div>`
     + (m.year ? `<div class="card-year">${m.year}</div>` : "")
