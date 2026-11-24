@@ -191,6 +191,16 @@ function redrawWatched(m) {
   if (box && box.isConnected && Number(location.hash.split("/")[2]) === m.id) box.innerHTML = watchedHtml(m);
 }
 
+// The Watched list changed (a night logged, finished or deleted; `saved` has the new `watched` and
+// `watched_this_year`): redraw it, and grey or clear the cover on the card behind this screen.
+function watchedSaved(m, saved) {
+  m.watched = saved.watched;
+  m.watched_this_year = saved.watched_this_year;
+  keepInState({ id: m.id, watched_this_year: saved.watched_this_year });
+  redrawWatched(m);
+  renderGrid();
+}
+
 // ✕ on a Watched row: "Delete this viewing?", then it goes here and in Matinee (the server refuses when Matinee
 // can't be reached, so the two never disagree). The Calendar and "Not watched this year" read the same rows.
 function confirmDelete(m, viewingId, from) {
@@ -205,15 +215,16 @@ function confirmDelete(m, viewingId, from) {
       if (act === "cancel") return closeContinueSheet();
       if (act !== "delete") return;
       for (const b of document.querySelectorAll("#watched-delete button")) b.disabled = true;
+      let saved;
       try {
-        m.watched = (await api(`/api/viewings/${viewingId}`, { method: "DELETE" })).watched;
+        saved = await api(`/api/viewings/${viewingId}`, { method: "DELETE" });
       } catch (e) {
         closeContinueSheet();
         toast(`Couldn't delete it: ${e.message}`);
         return;
       }
       closeContinueSheet();
-      redrawWatched(m);
+      watchedSaved(m, saved);
       toast("Viewing deleted.");
       const back = document.querySelector("#detail-watched .watched-delete") || document.getElementById("detail-rate");
       if (back) back.focus();
@@ -222,14 +233,14 @@ function confirmDelete(m, viewingId, from) {
 
 // After a finish the new viewing joins the Watched list.
 async function reloadWatched(m) {
+  let fresh;
   try {
-    const fresh = await api(`/api/movies/${m.id}`);
-    m.watched = fresh.watched;
-    m.today = fresh.today;
+    fresh = await api(`/api/movies/${m.id}`);
   } catch {
     return;   // the list is right again on the next visit
   }
-  redrawWatched(m);
+  m.today = fresh.today;
+  watchedSaved(m, fresh);
 }
 
 function redrawTonight(m) {
@@ -285,8 +296,7 @@ async function logDate(m, button) {
     syncLog();
     return;
   }
-  m.watched = saved.watched;
-  redrawWatched(m);
+  watchedSaved(m, saved);
   if (m.viewing?.viewing_id === saved.viewing_id) {
     m.viewing = null;
     redrawTonight(m);
