@@ -4,7 +4,7 @@ import { api, APP_NAME, toast } from "./core.js";
 import { openAddSheet } from "./add.js";
 import { showCalendar } from "./calendar.js";
 import { checkPrompt, loadContinue, wireContinue } from "./continue.js";
-import { showDetail } from "./detail.js";
+import { showDetail, wireDetail } from "./detail.js";
 import { loadMovies, watchPosters } from "./grid.js";
 import { wireSearch } from "./search.js";
 import { showSettings } from "./settings.js";
@@ -65,6 +65,7 @@ async function start() {
   wireSearch();
   wireSurprise();
   wireContinue();
+  wireDetail();
   const add = document.getElementById("add-btn");
   add.addEventListener("click", () => openAddSheet(add));
   window.addEventListener("hashchange", route);
