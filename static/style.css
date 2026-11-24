@@ -1135,6 +1135,60 @@ button.cal-day {
 .tonight-status + .detail-actions {
   margin-top: var(--s2);
 }
+/* Log date (as in Matinee): who watched, a date and the button, above the Watched list */
+.who-row,
+.who-btns {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+.who-row {   /* the toggles sit beside the label, or all go under it together (360 px) */
+  column-gap: var(--s3);
+  margin: var(--s2) 0;
+}
+.who-label {
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+}
+.who-btn {
+  --pc: var(--ink-3);
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 2px solid var(--field-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-2);
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.who-btn[data-color="green"] { --pc: var(--p-user1); }
+.who-btn[data-color="blue"] { --pc: var(--p-user2); }
+.who-btn[data-color="red"] { --pc: var(--p-user3); }
+.who-btn[data-color="pink"] { --pc: var(--p-user4); }
+.who-btn[data-color="purple"] { --pc: var(--p-user5); }
+.who-btn[aria-pressed="true"] {   /* watched: filled with the person's colour, like their dot */
+  background: var(--pc);
+  border-color: var(--pc);
+  color: #0b0b0e;
+}
+.log-row {
+  display: flex;
+  gap: var(--s2);
+  margin: var(--s2) 0 var(--s3);
+}
+.log-row .field {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+}
+.log-row .btn {
+  flex: none;
+}
 .watched-list {
   list-style: none;
   margin: 0;

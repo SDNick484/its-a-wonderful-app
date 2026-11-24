@@ -117,7 +117,8 @@ async function giveUp(v) {
   }
 }
 
-// After a finish (spec §11) the rating sheet opens by itself, with the viewing's people first; closing it rates nobody.
+// After a finish or a logged date (spec §11) the rating sheet opens by itself, with the viewing's people first;
+// closing it rates nobody.
 async function rateAfterFinish(v, onRated) {
   closeContinueSheet();
   let m;
@@ -237,4 +238,4 @@ function wireContinue() {
   });
 }
 
-export { checkPrompt, closeContinueSheet, finishViewing, keepWatching, loadContinue, openContinueSheet, watchTonight, wireContinue };
+export { checkPrompt, closeContinueSheet, finishViewing, keepWatching, loadContinue, openContinueSheet, rateAfterFinish, watchTonight, wireContinue };

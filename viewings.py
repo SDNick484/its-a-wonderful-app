@@ -374,6 +374,48 @@ def finish(con, viewing_id, finished_on=None):
     ha.post_watch_logged(ha_payload(con, viewing_id))
 
 
+def log_watched(con, movie_id, finished_on, person_ids=None):
+    """Log date: a night nobody logged at the time (heard about the day after, say). The movie gets a finished viewing
+    dated `finished_on` (a date; parse_finished_on keeps it out of the future) with `person_ids` as who watched (None:
+    every active person; an empty list is a 400). When the movie has an open viewing that had begun by that date, that
+    one is finished instead, so the night isn't counted twice and it leaves Continue Watching (it keeps its own people
+    when none are named); an open viewing begun after that date is a different night and stays open. Matinee gets an
+    owned movie's watch as after We finished (owed when it can't take it). Home Assistant's movie log hears of it only
+    when the date is today, as Matinee tells it only of a watch logged live. Returns the viewing's id. 404 for an
+    unknown movie, 400 with no date."""
+    movies.get_row(con, movie_id)
+    if finished_on is None:
+        abort(make_err(400, "Choose the date you watched it."))
+    ids = _person_ids(con, person_ids)
+    if person_ids is not None and not ids:
+        abort(make_err(400, "Choose who watched it."))
+    day = finished_on.isoformat()
+    _begin(con)
+    try:
+        row = con.execute("SELECT id FROM viewings WHERE movie_id=? AND status IN ('tonight','watching','paused')"
+                          " AND started_on<=? ORDER BY id DESC LIMIT 1", (movie_id, day)).fetchone()
+        if row is None:
+            viewing_id = con.execute("INSERT INTO viewings (movie_id, started_on, status, finished_on, updated_at)"
+                                     " VALUES (?,?,'finished',?,?)", (movie_id, day, day, now_iso())).lastrowid
+        else:
+            viewing_id = row["id"]
+            _end_sessions(con, viewing_id, "manual")
+            con.execute("UPDATE viewings SET status='finished', finished_on=?, updated_at=? WHERE id=?",
+                        (day, now_iso(), viewing_id))
+            _answered(con, viewing_id)
+        if row is None or person_ids is not None:
+            con.execute("DELETE FROM viewing_people WHERE viewing_id=?", (viewing_id,))
+            con.executemany("INSERT INTO viewing_people (viewing_id, person_id) VALUES (?,?)", [(viewing_id, p) for p in ids])
+        con.commit()
+    except BaseException:
+        con.rollback()
+        raise
+    send_watch(con, viewing_id)
+    if finished_on == today():
+        ha.post_watch_logged(ha_payload(con, viewing_id))
+    return viewing_id
+
+
 def _owed(con, viewing_id, on):
     if on:
         con.execute("INSERT OR IGNORE INTO meta (k, v) VALUES (?, ?)", (f"{OWED}{viewing_id}", now_iso()))

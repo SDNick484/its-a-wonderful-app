@@ -88,19 +88,27 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   for who watched. **✕** deletes one logged by mistake (it asks first), here and in Matinee, so the Calendar and **Not
   watched this year** follow. If Matinee can't be reached nothing is deleted (try again later); a watch Matinee never
   got is only deleted here. Home Assistant's movie log keeps its entry.
+- **Log date.** For a night nobody logged at the time (you hear the day after that they watched it): above the
+  Watched list, as in Matinee, **Who watched** has a toggle per person, everyone on until you tap someone off, then
+  a date (today or earlier) and **Log date**. The night joins the Watched list, the Calendar and **Not watched this
+  year**, Matinee gets the watch dated that night, and the rating sheet opens with the people who watched first. If
+  the movie was waiting in Continue Watching since that date or before, that viewing is the one finished, so the
+  night isn't counted twice; one picked later stays on the row. Home Assistant's movie log hears of it only when the
+  date is today (Matinee's rule for a logged date).
 - **Finishing tells Matinee and Home Assistant.** A finished movie Matinee owns is logged there once as a watch, dated
   the day it finished (the last TV night, or today), with the people who watched and whom Matinee knows (a visitor is
-  left out); the app never asks Matinee to tell Home Assistant. Every finished movie, owned or not, is posted once to
-  `HA_WEBHOOK_URL`, Matinee's Family Room movie log webhook, in Matinee's own shape (`"event":
-  "matinee_watch_logged"`) plus `"source": "wonderful"`, with `formats` and `location` from Matinee for an owned movie
-  (`[]` and `null` otherwise) and `title_id` always `null`. Home Assistant failing is a warning in the log (naming the
-  host only, never the webhook URL). If Matinee is down, slow or refuses the key, the movie is finished all the same,
-  the watch is owed, and the nightly refresh sends it (Home Assistant is not told twice). A finished movie counts for
-  **Not watched this year**.
+  left out); the app never asks Matinee to tell Home Assistant. Every movie finished with **We finished** or
+  **Yes**, owned or not, is posted once to `HA_WEBHOOK_URL`, Matinee's Family Room movie log webhook, in Matinee's
+  own shape (`"event": "matinee_watch_logged"`) plus `"source": "wonderful"`, with `formats` and `location` from
+  Matinee for an owned movie (`[]` and `null` otherwise) and `title_id` always `null`. Home Assistant failing is a
+  warning in the log (naming the host only, never the webhook URL). If Matinee is down, slow or refuses the key, the
+  movie is finished all the same, the watch is owed, and the nightly refresh sends it (Home Assistant is not told
+  twice). A finished movie counts for **Not watched this year**.
   API: `POST /api/movies/<id>/tonight` (`{"people": [ids]}` optional), `GET /api/continue`, `GET /api/prompt`,
   `POST /api/viewings/<id>/keep`, `…/not-yet`, `…/finish` (`{"finished_on": "2026-12-12"}` optional; a second finish
-  is a 409), `…/abandon`, `DELETE /api/viewings/<id>` (a finished viewing and its Matinee watch; 502 when Matinee
-  can't delete it).
+  is a 409), `…/abandon`, `POST /api/movies/<id>/watched` (`{"finished_on": "2026-12-12", "people": [ids]}`, `people`
+  optional: Log date), `DELETE /api/viewings/<id>` (a finished viewing and its Matinee watch; 502 when Matinee can't
+  delete it).
 - **Settings → Subscriptions** (the gear in the header). Each streaming service is **Subscribed**, **Considering** or
   **Ignore**, and every card follows at once. Starting statuses: Netflix, Disney+, Hulu, Prime Video, Fandango at
   Home and YouTube TV subscribed; HBO Max, Peacock, Paramount+ and Apple TV considering. The list, each service's
