@@ -1,10 +1,11 @@
 // It's a Wonderful App: one movie's detail view (backdrop, overview, runtime, certification, cast, collection, the
-// parent note), Watch tonight / We finished, the family rating (with the notice when Matinee disagrees), Log date (a
-// night nobody logged at the time, with who watched, as in Matinee), the Watched list (each finished viewing, deletable
-// when it was logged by mistake) and Remove.
+// parent note), Watch tonight / We finished, Play on the Family Room TV (play.js), the family rating (with the notice
+// when Matinee disagrees), Log date (a night nobody logged at the time, with who watched, as in Matinee), the Watched
+// list (each finished viewing, deletable when it was logged by mistake) and Remove.
 import { closeContinueSheet, finishViewing, keepWatching, loadContinue, openContinueSheet, rateAfterFinish, watchTonight } from "./continue.js";
 import { api, esc, state, toast } from "./core.js";
 import { loadMovies, posterHtml, renderGrid, watchPosters } from "./grid.js";
+import { playHtml, startPlay } from "./play.js";
 import { dotHtml, dotsHtml, initialOf, openRatingSheet, starText } from "./rating.js";
 
 const CERT_CHOICES = ["G", "PG", "PG-13", "R", "NR"];
@@ -121,6 +122,7 @@ function detailHtml(m) {
     + `<div id="detail-tonight-box">${tonightHtml(m)}</div>`
     + `<h3 class="detail-label">Ratings</h3><div id="detail-ratings">${ratingsHtml(m)}</div>`
     + `<h3 class="detail-label">Watched</h3><div id="detail-log-box">${logHtml(m)}</div><div id="detail-watched">${watchedHtml(m)}</div>`
+    + playHtml(m)
     + `<h3 class="detail-label">Where to watch</h3><div id="detail-where-box">${whereHtml(m)}</div>`
     + (m.top_cast.length ? `<h3 class="detail-label">Cast</h3><p class="detail-cast">${m.top_cast.map(esc).join(", ")}</p>` : "")
     + `<h3 class="detail-label"><label for="detail-cert">Certification</label></h3>`
@@ -261,6 +263,38 @@ async function tonightAction(m, which, button) {
   if (v?.status === "finished") reloadWatched(m);
 }
 
+// A Play on the Family Room TV line, on this movie's page while it is open; when the person has gone elsewhere it
+// comes as a toast instead (a disc's stays until tapped), so the answer isn't lost.
+function sayOnPage(m) {
+  return (text, sticky) => {
+    const line = document.getElementById("detail-play-status");
+    if (line && line.isConnected && detailMovie === m && Number(location.hash.split("/")[2]) === m.id) line.textContent = text;
+    else toast(text, sticky ? 0 : undefined);
+  };
+}
+
+// Start the disc or Stream it: every Play button is off until the server answers, so a second tap sends nothing; then
+// the tonight box shows the viewing the play made (or, when the play failed, the one it made before Home Assistant
+// didn't answer), and Continue Watching follows.
+async function playAction(m, button) {
+  const buttons = [...document.querySelectorAll("#detail-play-box [data-play]")];
+  for (const b of buttons) b.disabled = true;
+  const body = button.dataset.play === "disc" ? { mode: "disc" } : { mode: "stream", service: button.dataset.service };
+  const answer = await startPlay(m, body, sayOnPage(m));
+  for (const b of buttons) b.disabled = false;
+  if (answer) {
+    m.viewing = answer.viewing;
+  } else {
+    try {
+      m.viewing = (await api(`/api/movies/${m.id}`)).viewing;
+    } catch {
+      // the box is right again on the next visit
+    }
+  }
+  redrawTonight(m);
+  loadContinue();
+}
+
 // With every Who watched toggle off there is nobody to log, so the button is off too.
 function syncLog() {
   const button = document.getElementById("detail-log");
@@ -344,6 +378,8 @@ function onDetailClick(e) {
   if (e.target.closest("#detail-refresh")) refreshProviders(m, false);
   const tonight = e.target.closest("#detail-tonight, #detail-keep, #detail-finish");
   if (tonight) tonightAction(m, tonight.id.slice("detail-".length), tonight);
+  const play = e.target.closest("[data-play]");
+  if (play && !play.disabled) playAction(m, play);
   const rate = e.target.closest("#detail-rate");
   if (rate) openRatingSheet(m, rate, saved => ratingsSaved(m, saved));
   const who = e.target.closest(".who-btn");

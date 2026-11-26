@@ -310,6 +310,17 @@ main {
   transform: translateX(-50%) translateY(0);
   opacity: 1;
 }
+.toast-container.sticky {   /* a message that stays until it is tapped (toast(msg, 0)) */
+  pointer-events: auto;
+  cursor: pointer;
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.toast-container.sticky:not(.show) {
+  pointer-events: none;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .toast-container {
@@ -1144,6 +1155,34 @@ button.cal-day {
 }
 .tonight-status + .detail-actions {
   margin-top: var(--s2);
+}
+/* Play on the Family Room TV: a box per thing that can play the movie (the disc, each service), and the status line */
+.play-box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2) var(--s3);
+  margin-top: var(--s2);
+}
+.play-line {
+  flex: 1 1 10rem;
+  min-width: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.play-box .btn {
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+.play-status {
+  margin-top: var(--s2);
+  color: var(--ink);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.play-status:empty {
+  display: none;
 }
 /* Log date (as in Matinee): who watched, a date and the button, above the Watched list */
 .who-row,

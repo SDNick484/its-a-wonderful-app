@@ -164,6 +164,19 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   nothing. The app also remembers the TV's last state and input, with or without a movie on for tonight:
   `GET /api/tv` → `{"state": "on", "source": "Disney+", "at": "2026-12-12T19:31:04-08:00"}` (all `null` before the
   first event; `source` is `null` when the event had none).
+- **Play on the Family Room TV (the movie's page).** With `HA_PLAY_WEBHOOK_URL` set, a movie's detail view has a
+  **Play on the Family Room TV** section above "Where to watch", when something can play the movie: a disc box (the
+  shelf line and **Start the disc**) when Matinee holds a physical copy, and a box per service (**Stream it**, or
+  **Stream it on Disney+** when there is more than one; our digital copy reads "Our digital copy · Fandango at
+  Home"). Either button marks the movie for tonight (like **Watch tonight**), asks Home Assistant to start it, and
+  the line under the boxes follows along: "Opening Disney+ on the Family Room TV…", then "Disney+ is open on the
+  Family Room TV." once the TV's own event (the `/hooks/tv` automation) shows it on that input, "Sent to the TV."
+  when the TV has never reported, or "The TV didn't answer. Try the remote." after 90 seconds. A disc's messages end
+  with the shelf line ("…: go get it!"). With the setting empty the section isn't there. **Watch tonight** stays for
+  the other nights. API: `POST /api/movies/<id>/play` with `{"mode": "auto" | "stream" | "disc", "service"?}` →
+  `{"ok", "mode", "source", "name", "label", "viewing", "tv", "sent_at", "confirmed"}` (409 when the movie can't do
+  that, 502 when Home Assistant doesn't answer, 503 when Play is off), and each movie's `play` (`null` when off,
+  else `{"stream": [{"service", "name", "owned"}], "disc": {"label"} | null, "auto": "stream" | "disc" | null}`).
 - Sign-in rules (below), the Home Assistant TV hook's secret check, the installer, the OpenRC service and the nightly
   backup.
 

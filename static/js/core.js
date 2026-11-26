@@ -21,13 +21,28 @@ function esc(s) {
 }
 
 let toastTimer = null;
+let toastWired = false;
+// Shows `msg` for `duration` ms. A duration of 0 keeps it up until it is tapped or another message replaces it (a
+// message someone has to read and act on, like the shelf a disc is on).
 function toast(msg, duration = 4000) {
   const el = document.getElementById("toast");
   if (!el) return;
+  if (!toastWired) {
+    toastWired = true;
+    el.addEventListener("click", () => el.classList.remove("show"));
+  }
   el.textContent = msg;
+  if (duration === 0) el.classList.add("sticky");
+  else el.classList.remove("sticky");
   el.classList.add("show");
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove("show"), duration);
+  toastTimer = duration > 0 ? setTimeout(() => el.classList.remove("show"), duration) : null;
+}
+
+// The media_player states that mean the Family Room TV is on, and whether GET /api/tv's answer says so.
+const TV_ON_STATES = ["on", "playing", "paused", "idle", "buffering"];
+function tvIsOn(tv) {
+  return TV_ON_STATES.includes(tv.state);
 }
 
 // fetch() for the JSON API: sends a JSON body, throws an Error with .status (and the server's message) on failure.
@@ -54,4 +69,4 @@ async function api(path, opts = {}) {
   return await res.json();
 }
 
-export { api, APP_NAME, esc, state, toast };
+export { api, APP_NAME, esc, state, toast, tvIsOn };
