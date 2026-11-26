@@ -156,11 +156,14 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
 - **The Family Room TV.** A Home Assistant automation posts the TV's on/off and input changes to `POST /hooks/tv`
   (`{"state", "source", "at"}` with `X-Hook-Secret: <HA_HOOK_SECRET>`; the YAML is in
   [docs/home-assistant.md](docs/home-assistant.md)). While one movie is on for tonight, the TV turning on to an input
-  that can play it (a service TMDB lists it on, by that service's `tv_source`, or `AV Receiver` for a disc Matinee
-  says we own) starts counting; the TV turning off, switching to anything else, or running past the runtime + 60
-  minutes stops it. Then the movie is paused with a guess: finished at 85 % of the runtime, otherwise not, and no
-  guess when the runtime is unknown (the question is still asked, with nothing highlighted). Duplicate, late or
-  out-of-order events, "on" twice and "off" with nothing counting change nothing.
+  that can play it (a service TMDB lists it on, by that service's `tv_source`; `AV Receiver` when Matinee holds a
+  physical copy; or `Fandango at Home` when it holds a digital one) starts counting; the TV turning off, switching to
+  anything else, or running past the runtime + 60 minutes stops it. Then the movie is paused with a guess: finished
+  at 85 % of the runtime, otherwise not, and no guess when the runtime is unknown (the question is still asked, with
+  nothing highlighted). Duplicate, late or out-of-order events, "on" twice and "off" with nothing counting change
+  nothing. The app also remembers the TV's last state and input, with or without a movie on for tonight:
+  `GET /api/tv` → `{"state": "on", "source": "Disney+", "at": "2026-12-12T19:31:04-08:00"}` (all `null` before the
+  first event; `source` is `null` when the event had none).
 - Sign-in rules (below), the Home Assistant TV hook's secret check, the installer, the OpenRC service and the nightly
   backup.
 

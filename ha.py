@@ -73,6 +73,8 @@ ON_STATES = ("on", "playing", "paused", "idle", "buffering")   # media_player st
 OFF_STATES = ("off", "standby")
 NO_SOURCE = ("", "none", "unknown", "unavailable")   # a template renders a missing attribute as "None"
 LAST_AT = "tv_last_event_at"      # meta key: the `at` of the newest TV event taken, so an older one is ignored
+LAST_STATE = "tv_last_state"      # meta key: that event's state (on, off, ...)
+LAST_SOURCE = "tv_last_source"    # meta key: that event's input; "" when it had none
 
 
 def _parse_at(value):
@@ -137,6 +139,26 @@ def sources_for(con, movie_id):
     return found
 
 
+def tv_is_on(state):
+    """True when the TV's media_player state (ON_STATES) says it is on; None and anything else is False."""
+    return state in ON_STATES
+
+
+def tv_state(con):
+    """Where the TV was at its newest event taken: {"state", "source", "at"} (the stored ISO time), all None when no
+    event has arrived, and a source of None when the event had none. Read-only."""
+    stored = {r["k"]: r["v"] for r in con.execute("SELECT k, v FROM meta WHERE k IN (?, ?, ?)",
+                                                  (LAST_AT, LAST_STATE, LAST_SOURCE))}
+    return {"state": stored.get(LAST_STATE) or None, "source": stored.get(LAST_SOURCE) or None,
+            "at": stored.get(LAST_AT) or None}
+
+
+def _remember(con, state, source, at):
+    """Keep the event as the TV's last state. Writes, no commit."""
+    for key, value in ((LAST_AT, at.isoformat()), (LAST_STATE, state), (LAST_SOURCE, source or "")):
+        con.execute("INSERT INTO meta (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (key, value))
+
+
 def _decide(con, state, source, at):
     """The rules of spec §10.2 for one event that is in order. Writes, no commit."""
     viewings.close_overdue(con, at)
@@ -177,7 +199,8 @@ def handle_tv_event(con, state, source, at):
     A session open past runtime + 60 min is closed at that limit first (`timeout`). Everything else is an idempotent
     no-op (Review Focus 3): an event no newer than the last one taken (a duplicate, or out of order by `at`), "on" with
     a session already open, "off" with none, no source, a state such as unavailable. Closing asks Did you finish?
-    with the guess (viewings.close_session)."""
+    with the guess (viewings.close_session). Every event in order also becomes the TV's last state (tv_state), whether
+    or not a viewing is on for tonight."""
     if not con.in_transaction:
         con.execute("BEGIN IMMEDIATE")   # two events at once: the second waits and then sees the first
     try:
@@ -186,8 +209,7 @@ def handle_tv_event(con, state, source, at):
         if last is not None and at <= last:
             result = {"action": "ignored", "reason": "duplicate" if at == last else "out of order"}
         else:
-            con.execute("INSERT INTO meta (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v=excluded.v",
-                        (LAST_AT, at.isoformat()))
+            _remember(con, state, source, at)
             result = _decide(con, state, source, at)
         con.commit()
     except BaseException:
