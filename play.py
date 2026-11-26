@@ -109,12 +109,16 @@ def _target(con, movie_id, title, mode, service):
 def _confirm(con, viewing_id, source, started_at):
     """True when the TV's remembered state is on and on `source` (case ignored): then no TV event is coming to open the
     night's session, so one is opened here unless one is open already. The write lock is taken first, as viewings does,
-    so two taps at once can't open two sessions."""
+    so two taps at once can't open two sessions. Waiting on Home Assistant took no lock, so another pick may have set
+    this viewing aside meanwhile (deleted, or paused): then it is no longer tonight's, nothing is written and the answer
+    is False."""
     if not con.in_transaction:
         con.execute("BEGIN IMMEDIATE")
     try:
+        row = con.execute("SELECT status FROM viewings WHERE id=?", (viewing_id,)).fetchone()
         tv = ha.tv_state(con)
-        there = ha.tv_is_on(tv["state"]) and tv["source"] is not None and tv["source"].casefold() == source.casefold()
+        there = (row is not None and row["status"] in ("tonight", "watching") and ha.tv_is_on(tv["state"])
+                 and tv["source"] is not None and tv["source"].casefold() == source.casefold())
         if there and con.execute("SELECT 1 FROM sessions WHERE viewing_id=? AND ended_at IS NULL",
                                  (viewing_id,)).fetchone() is None:
             viewings.open_session(con, viewing_id, source, started_at)
@@ -130,7 +134,9 @@ def start(con, movie_id, data, now=None):
     The movie is marked for tonight first (and stays marked if Home Assistant can't be reached), then Home Assistant is
     asked and waited for. Returns {"ok", "mode", "source", "name", "label", "viewing", "tv", "sent_at", "confirmed"}:
     `sent_at` is the ISO time taken before the request (the page ignores TV events older than it), `confirmed` that the
-    TV was already on that input. 503 when Play is off, 404 for an unknown movie, 400 for a bad body, 409 for something
+    TV was already on that input. `viewing` is the movie's open viewing as it stands after the wait, or None when another
+    pick set it aside meanwhile and it had no watched time (it was deleted); the answer is still ok then, because Home
+    Assistant was told to play. 503 when Play is off, 404 for an unknown movie, 400 for a bad body, 409 for something
     the movie can't do, 502 when Home Assistant doesn't take the request."""
     if not enabled():
         abort(make_err(503, "Play on TV isn't set up."))
@@ -146,4 +152,4 @@ def start(con, movie_id, data, now=None):
         abort(make_err(502, f"Couldn't reach the TV. {title} is on for tonight; use the remote."))
     confirmed = _confirm(con, viewing_id, source, now)
     return {"ok": True, "mode": mode, "source": source, "name": name, "label": label,
-            "viewing": viewings.out(con, viewing_id), "tv": ha.tv_state(con), "sent_at": sent_at, "confirmed": confirmed}
+            "viewing": viewings.open_for_movie(con, movie_id), "tv": ha.tv_state(con), "sent_at": sent_at, "confirmed": confirmed}
