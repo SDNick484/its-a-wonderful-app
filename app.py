@@ -20,6 +20,9 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /api/movies/<id>/tonight   POST {"people": [ids]}?: Watch tonight (spec §10.1) -> the viewing
   /api/movies/<id>/watched   POST {"finished_on": "2026-12-12", "people": [ids]?}: Log date, a night nobody logged at
                     the time -> the viewing and the movie's Watched list (Matinee gets the watch)
+  /api/movies/<id>/play   POST {"mode": "auto"|"stream"|"disc", "service"?}: Play on the Family Room TV: Watch tonight, then
+                    ask Home Assistant (HA_PLAY_WEBHOOK_URL) to start it -> {ok, mode, source, name, label, viewing, tv,
+                    sent_at, confirmed}; 502 when Home Assistant doesn't answer, 503 when Play on TV is off
   /api/continue     GET the Continue Watching row; /api/prompt GET the "Did you finish?" question, or null
   /api/viewings/<id>/keep | not-yet | finish | abandon   POST: Keep watching tonight, Not yet, We finished
                     ({"finished_on": "2026-12-12"}?; Matinee gets the watch, Home Assistant the movie log), We gave up
@@ -48,13 +51,14 @@ from flask import Flask, g, jsonify, make_response, request, send_from_directory
 from settings import APP_NAME, APP_DIR, _load_env, parse_hosts, PORT, DATA_DIR, DB_PATH, POSTER_DIR, ART_DIR  # noqa: F401
 from settings import CF_TEAM_DOMAIN, CF_AUD, ADMIN_EMAILS, LAN_EDIT, LAN_HOSTS, WONDERFUL_API_KEY, HA_HOOK_SECRET  # noqa: F401
 from settings import TMDB_READ_TOKEN, TMDB_API, TMDB_IMG, MATINEE_URL, MATINEE_API_KEY, HA_WEBHOOK_URL  # noqa: F401
+from settings import HA_PLAY_WEBHOOK_URL  # noqa: F401
 from settings import ANTHROPIC_API_KEY, AI_MODEL, AI_DAILY_CAP, AI_TIMEOUT, UA, SERVICES_FILE  # noqa: F401
 from common import RATING_ERROR, clean, make_err, validate_rating, round_half_up, today, now_iso  # noqa: F401
 from db import SCHEMA, SCHEMA_VERSION, connect, get_db, migrate, init_db  # noqa: F401
 from auth import KEY_IDENTITY, presented_key, lan_host, access_identity, cross_site  # noqa: F401
 from auth import editor_required, hook_required, public  # noqa: F401
 from tmdb import TmdbError  # noqa: F401
-import ai, ha, images, matinee, movies, people, providers, randomizer, ratings, search, sync, themes, tmdb, viewings, watched_days, worth  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
+import ai, ha, images, matinee, movies, people, play, providers, randomizer, ratings, search, sync, themes, tmdb, viewings, watched_days, worth  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
 
 
 # ===================================================================== split modules
@@ -62,7 +66,7 @@ import ai, ha, images, matinee, movies, people, providers, randomizer, ratings, 
 # in the tests) also rebinds X in each split module that holds it, so their code reads the new value. Patch app.X,
 # never the sibling module. A new module goes here and in installer/build.sh's cp line.
 _SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "ai", "images", "matinee", "movies", "people", "providers", "randomizer",
-                  "ratings", "search", "sync", "ha", "viewings", "themes", "worth",
+                  "ratings", "search", "sync", "ha", "play", "viewings", "themes", "worth",
                   "watched_days")
 
 
@@ -271,9 +275,9 @@ def api_calendar():
 def _movie_json(con, row):
     """movie_out plus the rating fields: family_rating and rating_source (what the poster shows, spec §8.2) and
     `family` {mean, by_person} for the detail view; and `watched_recently` (in the last 45 days), which greys the
-    poster on the grid."""
+    poster on the grid; and `play`, what can play it on the TV (play.options: null when Play on TV is off)."""
     return {**movies.movie_out(row), **ratings.out(con, row["id"]),
-            "watched_recently": viewings.watched_recently(con, row["id"])}
+            "watched_recently": viewings.watched_recently(con, row["id"]), "play": play.options(con, row["id"])}
 
 
 @app.get("/api/movies")
@@ -419,6 +423,15 @@ def api_log_watched(movie_id):
     viewing_id = viewings.log_watched(con, movie_id, viewings.parse_finished_on(body.get("finished_on")), body.get("people"))
     return jsonify(**viewings.out(con, viewing_id), watched=viewings.watched(con, movie_id),
                    watched_recently=viewings.watched_recently(con, movie_id))
+
+
+@app.post("/api/movies/<int:movie_id>/play")
+@editor_required
+def api_play(movie_id):
+    """{"mode": "auto" | "stream" | "disc", "service": "disney_plus"?} -> {"ok", "mode", "source", "name", "label", "viewing",
+    "tv", "sent_at", "confirmed"} (play.start): the movie is Watch tonight first, then Home Assistant is asked to start it
+    and waited for. 502 when it doesn't answer (the movie stays on for tonight); 503 when Play on TV is off."""
+    return jsonify(play.start(get_db(), movie_id, request.get_json(silent=True)))
 
 
 @app.get("/api/continue")

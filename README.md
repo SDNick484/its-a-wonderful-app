@@ -254,6 +254,7 @@ All in `/etc/conf.d/wonderful` on the host; every one is documented in [`.env.ex
 | `WONDERFUL_API_KEY` | Optional key for scripts |
 | `HA_HOOK_SECRET` | Secret Home Assistant sends to `/hooks/tv` |
 | `HA_WEBHOOK_URL` | Home Assistant webhook for the movie log (a secret) |
+| `HA_PLAY_WEBHOOK_URL` | Home Assistant webhook that starts something on the Family Room TV, for Play on TV (a secret); empty = off |
 | `TMDB_READ_TOKEN` | TMDB read token: posters, details, where to watch |
 | `MATINEE_URL`, `MATINEE_API_KEY` | Matinee's address and key: ownership, ratings and watches |
 | `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_DAILY_CAP`, `AI_TIMEOUT` | Smart search: the key, the model, searches per day, seconds to wait |

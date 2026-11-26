@@ -22,7 +22,7 @@ SETTINGS = (ROOT / "settings.py").read_text(encoding="utf-8")
 
 # spec §16, plus WONDERFUL_API_KEY (the "or a key" of the auth rule) and AI_TIMEOUT (plan Task 12)
 SPEC_SETTINGS = ["PORT", "DATA_DIR", "TMDB_READ_TOKEN", "MATINEE_URL", "MATINEE_API_KEY", "HA_HOOK_SECRET",
-                 "HA_WEBHOOK_URL", "ANTHROPIC_API_KEY", "AI_MODEL", "AI_DAILY_CAP", "AI_TIMEOUT", "CF_TEAM_DOMAIN", "CF_AUD",
+                 "HA_WEBHOOK_URL", "HA_PLAY_WEBHOOK_URL", "ANTHROPIC_API_KEY", "AI_MODEL", "AI_DAILY_CAP", "AI_TIMEOUT", "CF_TEAM_DOMAIN", "CF_AUD",
                  "ADMIN_EMAILS", "LAN_EDIT", "LAN_HOSTS", "TZ", "WONDERFUL_API_KEY"]
 
 
@@ -75,7 +75,7 @@ def test_every_setting_is_read_by_settings_py():
 
 
 def test_no_secret_has_a_value_in_the_example():
-    for key in ("MATINEE_API_KEY", "HA_HOOK_SECRET", "HA_WEBHOOK_URL", "ANTHROPIC_API_KEY", "TMDB_READ_TOKEN",
+    for key in ("MATINEE_API_KEY", "HA_HOOK_SECRET", "HA_WEBHOOK_URL", "HA_PLAY_WEBHOOK_URL", "ANTHROPIC_API_KEY", "TMDB_READ_TOKEN",
                 "WONDERFUL_API_KEY"):
         assert re.search(rf"^{key}=$", ENV, re.M), key
 

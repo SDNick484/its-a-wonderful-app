@@ -35,6 +35,7 @@ import ha
 import images
 import matinee
 import movies
+import play
 from common import clean, host_tz, make_err, now_iso, today
 
 OPEN = ("tonight", "watching", "paused")
@@ -596,13 +597,14 @@ def watched_recently(con, movie_id, days=RECENT_DAYS):
 
 def continue_watching(con):
     """The Continue Watching row: open viewings, tonight's first, then the most recently touched. Each is out() plus
-    the movie's year, runtime_min and poster_url."""
+    the movie's year, runtime_min and poster_url, and `play` (play.options: what can play it on the TV, null when off)."""
     rows = con.execute(
         "SELECT v.id, m.year, m.runtime_min, m.poster_path FROM viewings v JOIN movies m ON m.id = v.movie_id"
         " WHERE v.status IN ('tonight','watching','paused')"
         " ORDER BY CASE WHEN v.status='paused' THEN 1 ELSE 0 END, v.updated_at DESC, v.id DESC").fetchall()
-    return [{**out(con, r["id"]), "year": r["year"], "runtime_min": r["runtime_min"],
-             "poster_url": images.image_url(r["poster_path"])} for r in rows]
+    entries = [(out(con, r["id"]), r) for r in rows]
+    return [{**o, "year": r["year"], "runtime_min": r["runtime_min"], "poster_url": images.image_url(r["poster_path"]),
+             "play": play.options(con, o["movie_id"])} for o, r in entries]
 
 
 def pending_prompt(con):

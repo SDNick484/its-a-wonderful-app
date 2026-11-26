@@ -88,6 +88,7 @@ add_setting "$CONF" LAN_HOSTS "" "Host names LAN requests may use besides IPs an
 add_setting "$CONF" WONDERFUL_API_KEY "" "Optional key for scripts (Authorization: Bearer <key>); empty = no key access"
 add_setting "$CONF" HA_HOOK_SECRET "$(gen_key)" "Shared secret Home Assistant sends as X-Hook-Secret to /hooks/tv; empty = the hook is off"
 add_setting "$CONF" HA_WEBHOOK_URL "" "Home Assistant webhook URL for the movie log (the same one Matinee uses), a secret; empty = off"
+add_setting "$CONF" HA_PLAY_WEBHOOK_URL "" "Home Assistant webhook URL that starts something on the Family Room TV (Play on TV), a secret; empty = off"
 add_setting "$CONF" TMDB_READ_TOKEN "" "TMDB API Read Access Token (themoviedb.org -> Settings -> API); adding movies needs it"
 add_setting "$CONF" MATINEE_URL "http://127.0.0.1:8771" "Matinee's address on the LAN (ownership, ratings and watches)"
 add_setting "$CONF" MATINEE_API_KEY "" "Matinee's MATINEE_API_KEY (its write key); empty = no Matinee sync"
@@ -135,7 +136,7 @@ description="It's a Wonderful App (family Christmas movie picker)"
 : ${PORT:=8772}
 : ${DATA_DIR:=/var/lib/wonderful}
 export HOME=/var/lib/wonderful  # newer gunicorn keeps a small control socket under $HOME
-export PORT DATA_DIR TZ CF_TEAM_DOMAIN CF_AUD ADMIN_EMAILS LAN_EDIT LAN_HOSTS WONDERFUL_API_KEY HA_HOOK_SECRET HA_WEBHOOK_URL TMDB_READ_TOKEN MATINEE_URL MATINEE_API_KEY ANTHROPIC_API_KEY AI_MODEL AI_DAILY_CAP AI_TIMEOUT
+export PORT DATA_DIR TZ CF_TEAM_DOMAIN CF_AUD ADMIN_EMAILS LAN_EDIT LAN_HOSTS WONDERFUL_API_KEY HA_HOOK_SECRET HA_WEBHOOK_URL HA_PLAY_WEBHOOK_URL TMDB_READ_TOKEN MATINEE_URL MATINEE_API_KEY ANTHROPIC_API_KEY AI_MODEL AI_DAILY_CAP AI_TIMEOUT
 supervisor="supervise-daemon"
 respawn_delay=5
 respawn_max=10
