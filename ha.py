@@ -10,6 +10,7 @@ import datetime as dt, json, logging, threading, urllib.error, urllib.parse, url
 
 from flask import abort, current_app, has_app_context
 
+import movies
 import providers
 import viewings
 from common import clean, host_tz, make_err
@@ -66,7 +67,8 @@ def post_watch_logged(payload):
 
 
 # ------------------------------------------------------------------------------------------------ inbound: the TV (§10.2)
-RECEIVER = "AV Receiver"          # the TV input a disc comes in on (through the receiver): counts for owned movies only
+RECEIVER = "AV Receiver"          # the TV input a disc comes in on (through the receiver): counts for owned discs only
+FANDANGO = "fandango_at_home"     # the service key (data/services.json) where our digital copies play
 ON_STATES = ("on", "playing", "paused", "idle", "buffering")   # media_player states that mean the TV is on
 OFF_STATES = ("off", "standby")
 NO_SOURCE = ("", "none", "unknown", "unavailable")   # a template renders a missing attribute as "None"
@@ -117,17 +119,20 @@ def parse_tv_event(data):
 
 def sources_for(con, movie_id):
     """The TV inputs that can play the movie, casefolded: the tv_source of every service TMDB lists it on (any tier, any
-    status: the cache, no TMDB call), plus the receiver input when Matinee says it's owned (a disc)."""
+    status: the cache, no TMDB call), plus the receiver input when Matinee holds a disc, plus Fandango at Home's input
+    when it holds a digital copy (which plays there whatever the service's status)."""
+    physical, digital = movies.copy_kinds(con, movie_id)
     tiers = providers.cached(con, movie_id)[0]
     keys = {k for names in tiers.values() for k in names}
+    if digital:
+        keys.add(FANDANGO)
     found = set()
     if keys:
         marks = ",".join("?" * len(keys))
         for r in con.execute(f"SELECT tv_source FROM services WHERE key IN ({marks})", sorted(keys)):
             if clean(r["tv_source"]):
                 found.add(clean(r["tv_source"]).casefold())
-    owned = con.execute("SELECT 1 FROM matinee_sync WHERE movie_id=? AND matinee_title_id IS NOT NULL", (movie_id,)).fetchone()
-    if owned:
+    if physical:
         found.add(RECEIVER.casefold())
     return found
 

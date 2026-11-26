@@ -73,17 +73,20 @@ class Client:
 
     # ------------------------------------------------------------------------------------------ the routes (spec §8)
     def owned(self, tmdb_id):
-        """GET /admin/api/tmdb/<tmdb_id>/owned -> {title_id, summary, location_path}. `title_id` is Matinee's id for the
+        """GET /admin/api/tmdb/<tmdb_id>/owned -> {title_id, summary, location_path, has_physical, has_digital}. `title_id` is Matinee's id for the
         title or None when Matinee doesn't have it. `summary` is Matinee's text for the copies ("Blu-ray", "Blu-ray ·
         Digital HD (Movies Anywhere)"), None when it has no copy. `location_path` is the first copy's shelf ("Family
-        Room › Media Cabinet › Shelf 2"), None when no copy has one."""
+        Room › Media Cabinet › Shelf 2"), None when no copy has one. `has_physical` and `has_digital` say whether any copy's
+        `kind` is "physical" (a disc) or "digital"; a copy of any other kind counts as neither."""
         d = self._call("GET", f"/admin/api/tmdb/{int(tmdb_id)}/owned")
         title_id = d.get("title_id")
         if title_id is not None and (isinstance(title_id, bool) or not isinstance(title_id, int)):
             raise Unavailable("Matinee sent something we couldn't read.")
         copies = [c for c in d.get("copies") or [] if isinstance(c, dict)]
         path = next((clean(c.get("location_path")) for c in copies if clean(c.get("location_path"))), None)
-        return {"title_id": title_id, "summary": clean(d.get("summary")), "location_path": path}
+        kinds = {c.get("kind") for c in copies}
+        return {"title_id": title_id, "summary": clean(d.get("summary")), "location_path": path,
+                "has_physical": "physical" in kinds, "has_digital": "digital" in kinds}
 
     def title(self, title_id):
         """GET /admin/api/titles/<id> -> Matinee's whole title record (`user_rating`, `watches[{watched_date, …}]`)."""

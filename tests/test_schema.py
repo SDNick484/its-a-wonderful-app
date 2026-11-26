@@ -1,4 +1,4 @@
-"""Schema v1 (spec §6), migrate(), and the shared helpers in common.py."""
+"""The schema (spec §6, v2 adds the copy kinds), migrate(), and the shared helpers in common.py."""
 import datetime as dt
 import sqlite3
 
@@ -21,15 +21,54 @@ def test_migrate_creates_every_table_and_is_idempotent(tmp_path):
     names = {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
     assert {"movies","providers_cache","services","people","person_ratings","viewings",
             "viewing_people","sessions","matinee_sync","ai_cache","meta"} <= names
-    assert con.execute("select v from meta where k='schema'").fetchone()[0] == "1"
+    assert con.execute("select v from meta where k='schema'").fetchone()[0] == "2"
 
 
-def test_schema_version_is_one():
-    assert db.SCHEMA_VERSION == "1"
+def test_schema_version_is_two():
+    assert db.SCHEMA_VERSION == "2"
+
+
+V1_MATINEE_SYNC = """
+CREATE TABLE matinee_sync (
+  movie_id INTEGER PRIMARY KEY REFERENCES movies(id) ON DELETE CASCADE,
+  matinee_title_id INTEGER,            -- NULL = not owned / not in Matinee
+  owned_summary TEXT,
+  location_path TEXT,
+  matinee_rating REAL,
+  matinee_last_watch TEXT,             -- newest watched_date Matinee has (for "Not watched this year")
+  pushed_rating REAL,
+  rating_owner TEXT NOT NULL DEFAULT 'matinee' CHECK (rating_owner IN ('matinee','wonderful')),
+  conflict_rating REAL,
+  checked_at TEXT
+);
+"""
+
+
+def test_v1_database_gains_the_copy_columns(tmp_path):
+    con = db.connect(tmp_path / "w.db")
+    con.executescript(db.SCHEMA.split("CREATE TABLE IF NOT EXISTS matinee_sync")[0])   # v1 tables up to matinee_sync
+    con.executescript(V1_MATINEE_SYNC)
+    con.execute("INSERT INTO meta (k, v) VALUES ('schema', '1')")
+    movie = con.execute("INSERT INTO movies (tmdb_id, title) VALUES (10719, 'Elf')").lastrowid
+    con.execute("INSERT INTO matinee_sync (movie_id, matinee_title_id, owned_summary, location_path, matinee_rating,"
+                " checked_at) VALUES (?, 1, 'Blu-ray', 'Family Room › Media Cabinet › Shelf 2', 9.0, '2026-11-19T07:26:02Z')",
+                (movie,))
+    con.commit()
+    assert "has_physical" not in columns(con, "matinee_sync")
+    before = tuple(con.execute("SELECT movie_id, matinee_title_id, owned_summary, location_path, matinee_rating,"
+                               " checked_at FROM matinee_sync").fetchone())
+    db.migrate(con); db.migrate(con)
+    assert columns(con, "matinee_sync")[-2:] == ["has_physical", "has_digital"]
+    row = con.execute("SELECT * FROM matinee_sync").fetchone()
+    assert (row["has_physical"], row["has_digital"]) == (None, None)
+    assert tuple(row[k] for k in ("movie_id", "matinee_title_id", "owned_summary", "location_path", "matinee_rating",
+                                  "checked_at")) == before
+    assert con.execute("SELECT count(*) FROM matinee_sync").fetchone()[0] == 1
+    assert con.execute("SELECT v FROM meta WHERE k='schema'").fetchone()[0] == "2"
 
 
 def test_the_whole_spec_schema_is_there_now(tmp_path):
-    # Later tasks never migrate (plan, Task 1): every column of spec §6 exists from v1.
+    # Every column of spec §6 exists from v1; v2 adds only the two copy-kind columns on matinee_sync.
     con = db.connect(tmp_path / "w.db"); db.migrate(con)
     assert columns(con, "movies") == [
         "id", "tmdb_id", "tmdb_type", "title", "year", "runtime_min", "certification", "certification_override",
@@ -45,7 +84,7 @@ def test_the_whole_spec_schema_is_there_now(tmp_path):
     assert columns(con, "sessions") == ["id", "viewing_id", "tv_source", "started_at", "ended_at", "end_reason"]
     assert columns(con, "matinee_sync") == [
         "movie_id", "matinee_title_id", "owned_summary", "location_path", "matinee_rating", "matinee_last_watch",
-        "pushed_rating", "rating_owner", "conflict_rating", "checked_at"]
+        "pushed_rating", "rating_owner", "conflict_rating", "checked_at", "has_physical", "has_digital"]
     assert columns(con, "ai_cache") == ["q_norm", "list_hash", "result", "created_at"]
     assert set(r[0] for r in con.execute("select name from sqlite_master where type='table'")) == TABLES
 

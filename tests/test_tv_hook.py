@@ -146,6 +146,26 @@ def test_disc_counts_on_av_receiver_only_when_owned(client, tv):
     assert (vrow(w)["watched_seconds"], vrow(w)["guess"]) == (102 * 60, "finished")   # 97 min Elf
 
 
+def test_digital_copy_counts_on_fandango_not_av_receiver(client, tv):
+    movie = sql("INSERT INTO movies (tmdb_id, title, year, runtime_min, certification)"
+                " VALUES (888, 'The Digital Carol', 2001, 90, 'G')")
+    streams(movie)                                                          # streams nowhere
+    tv["matinee"].owned_files[888] = "owned_digital_only.json"
+    with app.app.app_context():
+        app.movies.refresh_ownership(app.get_db(), movie)
+    v = tonight(client, movie)["viewing_id"]
+    assert event(client, "on", "AV Receiver", evening(1, 19, 0))["reason"] == "AV Receiver can't play it"
+    assert sessions(v) == []
+    assert event(client, "on", "Fandango at Home", evening(1, 19, 5))["action"] == "opened"
+    assert sessions(v)[0]["tv_source"] == "Fandango at Home"
+
+
+def test_a_disc_alone_does_not_count_on_fandango(client, tv):
+    w = tonight(client, tv["elf"])["viewing_id"]                            # a Blu-ray only
+    assert event(client, "on", "Fandango at Home", evening(1, 19, 0))["action"] == "ignored"
+    assert sessions(w) == []
+
+
 def test_timeout_closes_at_runtime_plus_60(client, tv):
     v = tonight(client, tv["klaus"])["viewing_id"]                          # 96 min
     start = evening(2, 19, 0)

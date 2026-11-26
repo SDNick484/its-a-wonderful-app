@@ -72,7 +72,8 @@ def asked(fake):
 
 # ------------------------------------------------------------------------------------------------ the client
 def test_owned_elf_reads_bluray_and_shelf(con, matinee_fixtures):
-    assert api().owned(ELF) == {"title_id": 1, "summary": "Blu-ray", "location_path": "Family Room › Media Cabinet › Shelf 2"}
+    assert api().owned(ELF) == {"title_id": 1, "summary": "Blu-ray", "location_path": "Family Room › Media Cabinet › Shelf 2",
+                                "has_physical": True, "has_digital": False}
     movie_id = add_row(con, ELF, "Elf")
     app.movies.refresh_ownership(con, movie_id)
     s = sync(con, movie_id)
@@ -83,8 +84,28 @@ def test_owned_elf_reads_bluray_and_shelf(con, matinee_fixtures):
     assert lines(con, movie_id)[0] == ("owned", SHELF)    # fresh: no "(as of …)"
 
 
+@pytest.mark.parametrize("fixture, kinds", [
+    ("owned_elf.json", (True, False)),
+    ("owned_digital_only.json", (False, True)),
+    ("owned_disc_and_digital.json", (True, True)),
+    ("owned_no_copies.json", (False, False)),
+])
+def test_owned_reads_which_kinds_of_copy_there_are(matinee_fixtures, fixture, kinds):
+    matinee_fixtures.owned_files[ELF] = fixture
+    found = api().owned(ELF)
+    assert (found["has_physical"], found["has_digital"]) == kinds
+
+
+def test_a_copy_of_any_other_kind_counts_as_neither(matinee_fixtures, monkeypatch):
+    body = {"title_id": 5, "summary": "Mystery", "copies": [{"kind": "tape", "format": "Betamax"}, {"kind": None}, "x"]}
+    monkeypatch.setattr(app.matinee.Client, "_call", lambda self, method, path, b=None: body)
+    found = api().owned(ELF)
+    assert (found["has_physical"], found["has_digital"]) == (False, False)
+
+
 def test_not_owned_sets_null_title_id(con, matinee_fixtures):
-    assert api().owned(KLAUS) == {"title_id": None, "summary": None, "location_path": None}
+    assert api().owned(KLAUS) == {"title_id": None, "summary": None, "location_path": None,
+                                  "has_physical": False, "has_digital": False}
     movie_id = add_row(con, KLAUS, "Klaus")
     app.movies.refresh_ownership(con, movie_id)
     s = sync(con, movie_id)
