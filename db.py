@@ -10,7 +10,7 @@ from flask import g, has_app_context
 import providers
 from settings import DATA_DIR, DB_PATH, POSTER_DIR, ART_DIR
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);   -- schema version, settings that live in the DB
@@ -98,7 +98,9 @@ CREATE TABLE IF NOT EXISTS matinee_sync (            -- what we last told / hear
   pushed_rating REAL,
   rating_owner TEXT NOT NULL DEFAULT 'matinee' CHECK (rating_owner IN ('matinee','wonderful')),
   conflict_rating REAL,
-  checked_at TEXT
+  checked_at TEXT,
+  has_physical INTEGER,                -- v2: 1 when Matinee holds a disc, 0 when not; NULL = not checked since the upgrade
+  has_digital INTEGER                  -- v2: the same for a digital copy
 );
 
 CREATE TABLE IF NOT EXISTS ai_cache (q_norm TEXT PRIMARY KEY, list_hash TEXT NOT NULL, result TEXT NOT NULL,
@@ -133,9 +135,15 @@ def get_db():
 
 def migrate(con):
     """Bring any earlier database (or an empty file) to SCHEMA_VERSION. Idempotent: safe on every start.
-    v1 is the first version, so it only creates what is missing; later versions add their steps below. The streaming
-    services (data/services.json) are seeded here, so a service added to the file appears on the next start."""
+    v1 is the first version, so it only creates what is missing; later versions add their steps below (each checks
+    PRAGMA table_info first, so a step is a no-op the second time). The streaming services (data/services.json) are
+    seeded here, so a service added to the file appears on the next start.
+    v2: matinee_sync.has_physical and has_digital, NULL on an old row until its next ownership check."""
     con.executescript(SCHEMA)
+    have = {r[1] for r in con.execute("PRAGMA table_info(matinee_sync)")}
+    for column in ("has_physical", "has_digital"):
+        if column not in have:
+            con.execute(f"ALTER TABLE matinee_sync ADD COLUMN {column} INTEGER")
     providers.seed_services(con)
     con.execute("INSERT OR REPLACE INTO meta (k, v) VALUES ('schema', ?)", (SCHEMA_VERSION,))
     con.commit()

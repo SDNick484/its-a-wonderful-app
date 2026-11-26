@@ -23,8 +23,8 @@ copies a write to `app.X` into each module that holds `X`. A new module goes in 
    an import map, so never hand-edit `?v=`. A new module goes in `JS_MODULES` in `tests/conftest.py`;
    `tests/test_js_modules.py` checks the graph.
 2. **Schema.** Changes go through the idempotent `db.migrate()`, which works from every earlier version, and
-   `SCHEMA_VERSION` is bumped (it is `"1"`; the whole spec §6 schema is already in v1, so most tasks need no
-   migration). No manual DB step on the host, ever.
+   `SCHEMA_VERSION` is bumped (it is `"2"`; v2 added the copy-kind columns on `matinee_sync`, and the rest of spec §6 was
+   already in v1, so most tasks need no migration). No manual DB step on the host, ever.
 3. **Tests.** pytest with recorded fixtures in `tests/fixtures/{tmdb,matinee,anthropic}/` and no live network
    (the `client` fixtures make `urllib.request.urlopen` raise). Add a fixture rather than calling an API. Every
    external call has a miss test and an HTTP-error test. Never skip or loosen a test to get green.

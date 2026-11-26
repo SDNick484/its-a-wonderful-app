@@ -12,8 +12,8 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
 ## What works today
 
 - `GET /healthz` → `{"status": "ok"}` with no sign-in, for a monitor; it says nothing else.
-- The app skeleton: the page, `GET /api/health` → `{"ok": true, "schema": "1"}`, and the whole database
-  schema (v1).
+- The app skeleton: the page, `GET /api/health` → `{"ok": true, "schema": "2"}`, and the whole database
+  schema (v2).
 - **The list.** The **+** button opens a sheet: search TMDB by title, tap **Add to our list**, and the grid gains
   the poster (3 columns on every phone). A movie or a TV-only special adds the same way; one already on the list
   says "On our list". Tap a poster for the detail view: backdrop, overview, runtime, certification (US, `NR` when

@@ -161,7 +161,8 @@ def check_ownership(con, movie_id):
     """Ask Matinee whether the movie is owned and where, and store the answer in matinee_sync (spec §8.1).
     A title Matinee doesn't have, or has with no copy, is not owned: matinee_title_id NULL and no summary or shelf.
     A TV-only entry (tmdb_type 'tv') is never asked: Matinee keys titles by movie id, so a TV id could match an
-    unrelated movie (spec §8.2). Only the five Matinee-read columns and checked_at are written here; then
+    unrelated movie (spec §8.2). Only the Matinee-read columns (the five, and has_physical / has_digital: 0 or 1 when
+    owned, 0 when not) and checked_at are written here; then
     sync.reconcile compares Matinee's rating with the family's (the bought-later rule, a conflict, a push still owed).
     Raises matinee.Unavailable or matinee.Rejected when Matinee gives no answer: nothing is changed then, so the last
     known answer and its checked_at stay."""
@@ -173,21 +174,39 @@ def check_ownership(con, movie_id):
     found = api.owned(row["tmdb_id"])
     title_id = found["title_id"] if found["summary"] else None
     summary = location = rating = last_watch = None
+    physical = digital = 0
     if title_id is not None:
         summary, location = found["summary"], found["location_path"]
+        physical, digital = int(found["has_physical"]), int(found["has_digital"])
         detail = api.title(title_id)
         rating = _user_rating(detail)
         last_watch = _newest_watch(detail.get("watches"))
     con.execute(
         "INSERT INTO matinee_sync (movie_id, matinee_title_id, owned_summary, location_path, matinee_rating,"
-        " matinee_last_watch, checked_at) VALUES (?,?,?,?,?,?,?)"
+        " matinee_last_watch, has_physical, has_digital, checked_at) VALUES (?,?,?,?,?,?,?,?,?)"
         " ON CONFLICT(movie_id) DO UPDATE SET matinee_title_id=excluded.matinee_title_id,"
         " owned_summary=excluded.owned_summary, location_path=excluded.location_path,"
         " matinee_rating=excluded.matinee_rating, matinee_last_watch=excluded.matinee_last_watch,"
-        " checked_at=excluded.checked_at",
-        (movie_id, title_id, summary, location, rating, last_watch, now_iso()))
+        " has_physical=excluded.has_physical, has_digital=excluded.has_digital, checked_at=excluded.checked_at",
+        (movie_id, title_id, summary, location, rating, last_watch, physical, digital, now_iso()))
     con.commit()
     sync.reconcile(con, movie_id, before)
+
+
+def copy_kinds(con, movie_id):
+    """(physical, digital): whether Matinee holds a disc and whether it holds a digital copy of the movie. (False,
+    False) when Matinee doesn't own it. The stored has_physical / has_digital answer when they are set; a row from
+    before the upgrade has them NULL until its next check, so then the owned summary is read instead: its parts are
+    split on "·", a part starting with "Digital" (any case) is digital and any other part is a disc."""
+    row = con.execute("SELECT matinee_title_id, owned_summary, has_physical, has_digital FROM matinee_sync"
+                      " WHERE movie_id=?", (movie_id,)).fetchone()
+    if row is None or row["matinee_title_id"] is None:
+        return False, False
+    if row["has_physical"] is not None and row["has_digital"] is not None:
+        return bool(row["has_physical"]), bool(row["has_digital"])
+    parts = [p.strip() for p in (row["owned_summary"] or "").split("·") if p.strip()]
+    digital = any(p.casefold().startswith("digital") for p in parts)
+    return any(not p.casefold().startswith("digital") for p in parts), digital
 
 
 def refresh_ownership(con, movie_id):
