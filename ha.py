@@ -1,11 +1,13 @@
 """Home Assistant (spec §8.5, §10.2). Outbound: the Family Room movie log. Every finished viewing, owned or not, is
 posted to HA_WEBHOOK_URL (the same webhook Matinee uses) with Matinee's ha_payload() shape and event name plus
 `"source": "wonderful"`, so the automation that keeps the dashboard's movie log takes it unchanged. Inbound: the Family
-Room TV's events on /hooks/tv (handle_tv_event; docs/home-assistant.md has the automation). Route-free; no Flask object
-here (see CLAUDE.md).
+Room TV's events on /hooks/tv (handle_tv_event; docs/home-assistant.md has the automation). Outbound, the other way:
+post_play asks Home Assistant, on HA_PLAY_WEBHOOK_URL, to start something on that TV. Route-free; no Flask object here
+(see CLAUDE.md).
 
-The webhook id in HA_WEBHOOK_URL is its only credential, so the URL is never logged: a failure is one warning naming the
-host and the kind of failure (an HTTP status or an exception class), never the URL or str(exc), which can echo it."""
+The webhook id in HA_WEBHOOK_URL and HA_PLAY_WEBHOOK_URL is its only credential, so a URL is never logged: a failure is one
+warning naming the host and the kind of failure (an HTTP status or an exception class), never the URL or str(exc), which
+can echo it."""
 import datetime as dt, json, logging, threading, urllib.error, urllib.parse, urllib.request
 
 from flask import abort, current_app, has_app_context
@@ -14,7 +16,7 @@ import movies
 import providers
 import viewings
 from common import clean, host_tz, make_err
-from settings import HA_WEBHOOK_URL, UA
+from settings import HA_PLAY_WEBHOOK_URL, HA_WEBHOOK_URL, UA
 
 TIMEOUT = 5
 EVENT = "matinee_watch_logged"   # Matinee's event name: the HA automation listens for this one
@@ -64,6 +66,37 @@ def post_watch_logged(payload):
         threading.Thread(target=_post, args=(url, dict(payload), log), daemon=True, name="ha-webhook").start()
     except Exception as e:  # noqa: BLE001 — e.g. no thread to be had: still never the caller's problem
         log.warning("Home Assistant webhook (host %s) not sent: %s", _host(url), type(e).__name__)
+
+
+class PlayFailed(Exception):
+    """Home Assistant didn't take a play request. The message is the kind of failure only, never the URL."""
+
+
+def post_play(payload):
+    """Ask Home Assistant to start something on the Family Room TV: POST `payload` as JSON to HA_PLAY_WEBHOOK_URL and wait
+    for the answer (TIMEOUT seconds: the phone needs to know, so unlike the movie log this is not fire and forget).
+    PlayFailed when there is no URL, on any exception, or on a status outside 200-299, after one host-only warning."""
+    url = HA_PLAY_WEBHOOK_URL
+    if not url:
+        raise PlayFailed("not set up")
+    log, host = _logger(), _host(url)
+    try:
+        req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), method="POST",
+                                     headers={"Content-Type": "application/json", "User-Agent": UA})
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            status = getattr(resp, "status", 200)
+    except urllib.error.HTTPError as e:
+        status = e.code
+        try:
+            e.close()
+        except Exception:  # noqa: BLE001 — nothing to read; the warning below is what matters
+            pass
+    except Exception as e:  # noqa: BLE001 — unreachable, slow, refused: the caller only needs to know it failed
+        log.warning("Home Assistant play webhook (host %s) failed: %s", host, type(e).__name__)
+        raise PlayFailed(type(e).__name__) from None
+    if not 200 <= status < 300:
+        log.warning("Home Assistant play webhook (host %s) answered HTTP %s", host, status)
+        raise PlayFailed(f"HTTP {status}")
 
 
 # ------------------------------------------------------------------------------------------------ inbound: the TV (§10.2)

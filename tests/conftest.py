@@ -43,6 +43,7 @@ def _isolate(tmp_path, monkeypatch):
     monkeypatch.setattr(core, "WONDERFUL_API_KEY", "")
     monkeypatch.setattr(core, "HA_HOOK_SECRET", "")
     monkeypatch.setattr(core, "HA_WEBHOOK_URL", "")
+    monkeypatch.setattr(core, "HA_PLAY_WEBHOOK_URL", "")
     monkeypatch.setattr(core, "TMDB_READ_TOKEN", "")
     monkeypatch.setattr(core, "MATINEE_API_KEY", "")
     monkeypatch.setattr(core, "_matinee_failed_at", None, raising=False)   # movies.py's page-view backoff, per test

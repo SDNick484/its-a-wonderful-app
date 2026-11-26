@@ -76,6 +76,9 @@ MATINEE_API_KEY = os.environ.get("MATINEE_API_KEY", "").strip()
 # Home Assistant webhook for the movie log (spec §8.5). A SECRET: the webhook id in the URL is its only credential,
 # so it is never logged, never returned by a route and never put in a payload.
 HA_WEBHOOK_URL = os.environ.get("HA_WEBHOOK_URL", "").strip()
+# Home Assistant webhook that starts something on the Family Room TV (Play on TV); empty = the feature is off. A SECRET
+# like HA_WEBHOOK_URL: never logged, never returned by a route, never put in a payload.
+HA_PLAY_WEBHOOK_URL = os.environ.get("HA_PLAY_WEBHOOK_URL", "").strip()
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 AI_MODEL = os.environ.get("AI_MODEL", "").strip() or "claude-haiku-5-5"
 AI_DAILY_CAP = _int("AI_DAILY_CAP", 200)
