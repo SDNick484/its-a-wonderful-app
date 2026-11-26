@@ -11,6 +11,7 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
 
 ## What works today
 
+- `GET /healthz` → `{"status": "ok"}` with no sign-in, for a monitor; it says nothing else.
 - The app skeleton: the page, `GET /api/health` → `{"ok": true, "schema": "1"}`, and the whole database
   schema (v1).
 - **The list.** The **+** button opens a sheet: search TMDB by title, tap **Add to our list**, and the grid gains

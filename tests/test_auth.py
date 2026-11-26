@@ -50,6 +50,53 @@ def test_security_headers(client):
     assert "frame-ancestors" in r.headers["Content-Security-Policy"]
 
 
+# ------------------------------------------------------------------------------- the one route with no sign-in
+# CLAUDE.md rule 5: /healthz is the only data-free route a monitor may read without signing in. Adding to this
+# set is a decision for Nick, not a way to get a test green.
+PUBLIC_ROUTES = {"/healthz"}
+
+
+def test_only_healthz_is_public():
+    marked = {r.rule for r in app.app.url_map.iter_rules()
+              if getattr(app.app.view_functions[r.endpoint], "auth", None) == "public"}
+    assert marked == PUBLIC_ROUTES
+
+
+def test_healthz_needs_no_sign_in_and_says_only_that_it_is_up(anon_client):
+    r = anon_client.get("/healthz")
+    assert r.status_code == 200
+    assert r.get_json() == {"status": "ok"}
+    assert "no-store" in r.headers["Cache-Control"]
+    assert r.headers["X-Content-Type-Options"] == "nosniff"
+
+
+def test_healthz_answers_through_the_tunnel_without_a_jwt(client):
+    assert client.get("/healthz", headers=TUNNEL).status_code == 200
+
+
+def test_healthz_is_get_only(anon_client):
+    assert anon_client.post("/healthz", json={}).status_code == 405
+
+
+def test_healthz_is_503_without_details_when_the_database_fails(anon_client, monkeypatch):
+    import sqlite3
+
+    def boom():
+        raise sqlite3.OperationalError("unable to open database file /secret/path/wonderful.db")
+
+    monkeypatch.setattr(app, "get_db", boom)
+    r = anon_client.get("/healthz")
+    assert r.status_code == 503
+    assert r.get_json() == {"status": "unavailable"}
+    assert b"secret" not in r.data
+
+
+def test_healthz_does_not_open_the_rest(anon_client):
+    assert anon_client.get("/healthz").status_code == 200
+    for path in ("/", "/api/health", "/api/me", "/api/movies"):
+        assert anon_client.get(path).status_code == 401, path
+
+
 # ------------------------------------------------------------------------------------- every route is guarded
 def test_every_route_needs_an_editor_or_the_hook_secret(anon_client):
     """Walks app.url_map: a new route without @editor_required (or @hook_required) fails here."""
@@ -57,6 +104,9 @@ def test_every_route_needs_an_editor_or_the_hook_secret(anon_client):
         if rule.endpoint in ("static_files",):
             continue
         view = app.app.view_functions[rule.endpoint]
+        if rule.rule in PUBLIC_ROUTES:
+            assert getattr(view, "auth", None) == "public", f"{rule.rule} must use @public"
+            continue
         expected = "hook" if rule.rule.startswith("/hooks/") else "editor"
         assert getattr(view, "auth", None) == expected, f"{rule.rule} must use @{expected}_required"
         url = rule.rule.replace("<int:", "<").replace("<path:", "<")

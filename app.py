@@ -5,6 +5,7 @@ app.py holds the Flask object, the request hooks and every route. The logic live
 
 Routes (every one needs an editor, auth.editor_required, except where noted):
   /                 the single-page app (static/index.html with versioned modules)
+  /healthz          no sign-in: {"status": "ok"}, or 503 {"status": "unavailable"}; for a monitor, nothing else
   /api/health       {"ok": true, "schema": "1"}
   /api/me           {"editor": "<who>"}
   /api/tmdb/search  TMDB search for the add sheet (?q=)
@@ -49,7 +50,7 @@ from settings import ANTHROPIC_API_KEY, AI_MODEL, AI_DAILY_CAP, AI_TIMEOUT, UA, 
 from common import RATING_ERROR, clean, make_err, validate_rating, round_half_up, today, now_iso  # noqa: F401
 from db import SCHEMA, SCHEMA_VERSION, connect, get_db, migrate, init_db  # noqa: F401
 from auth import KEY_IDENTITY, presented_key, lan_host, access_identity, cross_site  # noqa: F401
-from auth import editor_required, hook_required  # noqa: F401
+from auth import editor_required, hook_required, public  # noqa: F401
 from tmdb import TmdbError  # noqa: F401
 import ai, ha, images, matinee, movies, people, providers, randomizer, ratings, search, sync, themes, tmdb, viewings, watched_days, worth  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
 
@@ -174,6 +175,20 @@ def static_files(p):
         resp.cache_control.no_cache = True
         return resp
     return send_from_directory(APP_DIR / "static", p, max_age=60)
+
+
+@app.get("/healthz")
+@public
+def healthz():
+    """Is the app up and can it read its database? The one route with no sign-in (CLAUDE.md rule 5), so a
+    monitor that cannot sign in still gets an answer. It says nothing else: no schema, no counts, no error text."""
+    try:
+        get_db().execute("SELECT 1").fetchone()
+        resp, code = jsonify(status="ok"), 200
+    except Exception:  # noqa: BLE001 - whatever is wrong, the monitor only learns that something is
+        resp, code = jsonify(status="unavailable"), 503
+    resp.headers["Cache-Control"] = "no-store"
+    return resp, code
 
 
 # =============================================================================== api

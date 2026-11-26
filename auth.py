@@ -112,6 +112,13 @@ def editor_required(fn):
     return inner
 
 
+def public(fn):
+    """No sign-in at all. Only for a route that holds no data: `/healthz` (CLAUDE.md rule 5).
+    tests/test_auth.py pins the full list of public routes."""
+    fn.auth = "public"
+    return fn
+
+
 def hook_required(fn):
     """Home Assistant's webhook (spec §10.2): `X-Hook-Secret` must equal HA_HOOK_SECRET. An unset secret turns the
     hook off (403), so a fresh install never accepts events from anyone."""
