@@ -5,8 +5,9 @@ TV turns on or off and when its input (`source`) changes; the app never configur
 is the Home Assistant side. The names here are placeholders: `ha.example.com` for Home Assistant,
 `wonderful.example.com` / `192.168.1.100:8772` for the app, `media_player.family_room_tv` for the TV.
 
-(The other direction, the Family Room movie log that every finished movie is posted to, is `HA_WEBHOOK_URL`; see the
-README.)
+(Two more webhooks go from the app to Home Assistant: the Family Room movie log that every finished movie is posted
+to is `HA_WEBHOOK_URL`, see the README; and **Play on the Family Room TV**, which starts a movie on the TV, is
+`HA_PLAY_WEBHOOK_URL`, see the last section here.)
 
 ## What the app does with the events
 
@@ -20,11 +21,11 @@ Only while exactly one movie is picked for tonight (**Watch tonight**, or **Keep
 | A session open longer than the runtime + 60 min | Closed at runtime + 60 (`timeout`); 4 hours with no runtime |
 
 An input can play the movie when it is the `tv_source` of a streaming service TMDB lists the movie on
-(`data/services.json`: `Netflix`, `Disney+`, `HBO Max` ...), or `AV Receiver` when Matinee says the movie is owned (a
-disc). Closing a session adds its length to the movie's watched time and guesses: finished at 85 % of the runtime,
-otherwise not; no guess when the runtime is unknown. The next time anyone opens the app it asks **Did you finish?**
-with the guess highlighted. The movie is paused after a session closes, so a second night needs **Keep watching
-tonight** before the TV counts again.
+(`data/services.json`: `Netflix`, `Disney+`, `HBO Max` ...), `AV Receiver` when Matinee holds a physical copy of the
+movie (a disc), or `Fandango at Home` when it holds a digital copy. Closing a session adds its length to the movie's
+watched time and guesses: finished at 85 % of the runtime, otherwise not; no guess when the runtime is unknown. The
+next time anyone opens the app it asks **Did you finish?** with the guess highlighted. The movie is paused after a
+session closes, so a second night needs **Keep watching tonight** before the TV counts again.
 
 Everything else changes nothing and still answers 200: an event no newer than the last one (Home Assistant sending
 it twice, or late and out of order by `at`), "on" with a session already open, "off" with none, no movie picked, two
@@ -40,6 +41,8 @@ picked, an `unavailable` TV, or no `source`. The answer says why:
    be named differently). The `source` attribute must match a `tv_source` in `data/services.json` exactly as the TV
    spells it (case doesn't matter); the receiver input must be `AV Receiver`. If your TV names an app differently,
    change `tv_source` in `data/services.json` and restart the app (`rc-service wonderful restart`).
+   When the TV has several `media_player` entities, use the TV integration's own (the one whose `source_list` holds
+   the app names), not a Cast or music-player entity.
 2. Put the hook secret in Home Assistant's `secrets.yaml`. It is `HA_HOOK_SECRET` in `/etc/conf.d/wonderful` on the
    app's host (the installer generated it):
 
@@ -103,3 +106,160 @@ real events makes the app ignore the real ones until the clock passes it, so use
 Then pick a movie with **Watch tonight**, turn the TV on to a service that has it, and look at Home Assistant's
 **Settings → Automations → (the automation) → Traces**: the `rest_command` step shows the app's answer. Turn the TV
 off and open the app: it asks **Did you finish?**.
+
+## Play on the Family Room TV
+
+The other direction: with `HA_PLAY_WEBHOOK_URL` set, the app's **Stream it** and **Start the disc** buttons ask Home
+Assistant to start the movie on the TV. The app posts this to a Home Assistant webhook and waits up to 5 seconds for
+the answer:
+
+```json
+{"event": "wonderful_play", "mode": "stream", "source": "Disney+", "title": "Example Movie"}
+```
+
+`mode` is `stream` (open an app) or `disc` (start the Blu-ray). `source` is the TV's input name: a `tv_source` from
+`data/services.json`, `Fandango at Home` for a digital copy, or `AV Receiver` for a disc. Two things to make in
+Home Assistant, a script that does the work and an automation that receives the webhook. The entity names are
+placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `switch.watch_tv` and
+`switch.watch_a_bluray` (the remote's activities as switches).
+
+1. **The script** (**Settings → Automations & Scenes → Scripts → Add script → Edit in YAML**). Save it as "Play on the
+   Family Room TV" and check under **Settings → Devices & services → Entities** that its entity id is
+   `script.wonderful_play_on_tv` (rename it if not). `mode: restart` means a second pick replaces the first instead of
+   queueing behind a 60 second wait.
+
+   ```yaml
+   alias: "Play on the Family Room TV"
+   mode: restart
+   fields:
+     mode:
+       description: "stream to open an app, disc to start the Blu-ray"
+       required: true
+       selector:
+         select:
+           options:
+             - stream
+             - disc
+     source:
+       description: "The TV input to select, e.g. Disney+ or AV Receiver"
+       required: true
+       selector:
+         text:
+   sequence:
+     - choose:
+         - conditions:
+             - condition: template
+               value_template: "{{ mode == 'stream' }}"
+           sequence:
+             - if:
+                 - condition: not
+                   conditions:
+                     - condition: state
+                       entity_id: switch.watch_tv
+                       state: "on"
+               then:
+                 - action: switch.turn_on
+                   target:
+                     entity_id: switch.watch_tv
+             - if:
+                 - condition: not
+                   conditions:
+                     - condition: state
+                       entity_id: media_player.family_room_tv
+                       state: "on"
+               then:
+                 - wait_for_trigger:
+                     - trigger: state
+                       entity_id: media_player.family_room_tv
+                       to: "on"
+                   timeout: 60
+                   continue_on_timeout: false
+                 - delay:
+                     seconds: 5
+             - action: media_player.select_source
+               target:
+                 entity_id: media_player.family_room_tv
+               data:
+                 source: "{{ source }}"
+         - conditions:
+             - condition: template
+               value_template: "{{ mode == 'disc' }}"
+           sequence:
+             - if:
+                 - condition: not
+                   conditions:
+                     - condition: state
+                       entity_id: switch.watch_a_bluray
+                       state: "on"
+               then:
+                 - action: switch.turn_on
+                   target:
+                     entity_id: switch.watch_a_bluray
+   ```
+
+   For a stream, `switch.watch_tv` is turned on unless it is already on, even when the TV is already on under another
+   activity (Watch a Bluray, say) or was turned on some other way: the app then opens under Watch TV and the physical
+   remote drives it. Then, if the TV isn't on yet, the script waits up to 60 seconds for it (and gives up if it never
+   comes on), gives it 5 more seconds to finish starting, and selects the app. A disc only starts Watch a Bluray; that
+   activity is trusted to put the TV on `AV Receiver`.
+
+2. **The automation** (**Create → Edit in YAML**). It checks the payload and starts the script with `script.turn_on`,
+   which returns at once: calling the script as an action would hold the webhook's answer for the script's whole
+   run, and the app only waits 5 seconds. `local_only: true` limits the webhook to requests from your own network, and
+   `source` is only ever passed to `media_player.select_source` on the one TV, so the worst a leaked id can do is change
+   that TV's app. Replace `<a long random id>` with a long random string of your own (the id is the only credential;
+   `openssl rand -hex 24` makes one):
+
+   ```yaml
+   alias: "It's a Wonderful App plays on the Family Room TV"
+   mode: queued
+   triggers:
+     - trigger: webhook
+       webhook_id: "<a long random id>"
+       allowed_methods:
+         - POST
+       local_only: true
+   conditions:
+     - condition: template
+       value_template: >-
+         {{ trigger.json is defined
+            and trigger.json.event == 'wonderful_play'
+            and trigger.json.mode in ['stream', 'disc']
+            and (trigger.json.source | default('')) | length > 0 }}
+   actions:
+     - action: script.turn_on
+       target:
+         entity_id: script.wonderful_play_on_tv
+       data:
+         variables:
+           mode: "{{ trigger.json.mode }}"
+           source: "{{ trigger.json.source }}"
+   ```
+
+3. **Tell the app where it is.** The URL is the webhook's address on Home Assistant:
+   `http://ha.example.com:8123/api/webhook/<a long random id>` (the app is on your network, so use Home Assistant's
+   LAN address or name, not a Cloudflare one). It is a secret, so it goes in `/etc/conf.d/wonderful` on the app's
+   host, never in a repo, and the app never logs or shows it:
+
+   ```sh
+   vim /etc/conf.d/wonderful        # HA_PLAY_WEBHOOK_URL="http://ha.example.com:8123/api/webhook/<a long random id>"
+   rc-service wonderful restart
+   ```
+
+   With the setting empty (the default) the Play buttons don't show at all.
+
+### Try it
+
+From a machine on the LAN. This really does start the TV, so pick a service the TV has:
+
+```sh
+curl -s -i -X POST 'http://ha.example.com:8123/api/webhook/<a long random id>' \
+  -H 'Content-Type: application/json' \
+  -d '{"event": "wonderful_play", "mode": "stream", "source": "Disney+", "title": "Example Movie"}'
+```
+
+Home Assistant answers an empty `200` and the TV comes on in Watch TV and opens the app. A `200` doesn't prove the
+webhook id is right: Home Assistant also answers `200` to an id it doesn't know and does nothing, which the app
+then reports as "The TV didn't answer". So check the first play in **Settings → Automations → (the automation) →
+Traces**: a trace for it means the id matched; if there is none, fix the id in the automation or in
+`HA_PLAY_WEBHOOK_URL`. The script's own **Traces** show which branch ran and whether the 60 second wait timed out.
