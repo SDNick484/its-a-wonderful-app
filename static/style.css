@@ -742,6 +742,21 @@ main {
 .surprise-picks {
   margin-bottom: var(--s3);
 }
+/* A pick: the card, and the ▶ Play button over its poster's top-right corner (beside the card's link, not in it) */
+.pick {
+  position: relative;
+  min-width: 0;
+}
+.pick-play {
+  position: absolute;
+  top: var(--s2);
+  right: var(--s2);
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border-radius: 50%;
+  box-shadow: var(--shadow);
+}
 .surprise-again {
   width: 100%;
 }
@@ -1099,6 +1114,16 @@ button.cal-day {
   .continue-row {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
+}
+.continue-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-width: 0;
+}
+.continue-play {
+  width: 100%;
+  padding: 0;
 }
 .continue-item {
   display: flex;

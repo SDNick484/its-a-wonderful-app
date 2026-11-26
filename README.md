@@ -177,6 +177,11 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   `{"ok", "mode", "source", "name", "label", "viewing", "tv", "sent_at", "confirmed"}` (409 when the movie can't do
   that, 502 when Home Assistant doesn't answer, 503 when Play is off), and each movie's `play` (`null` when off,
   else `{"stream": [{"service", "name", "owned"}], "disc": {"label"} | null, "auto": "stream" | "disc" | null}`).
+  **The main page.** The same setting puts a **▶ Play** button on each Continue Watching item and a round ▶ on each of the
+  three Surprise picks (never on the big grid), when something can play the movie. It sends `{"mode": "auto"}`: whatever
+  the movie's `play.auto` says (a stream when there is one, otherwise the disc). The messages show as a toast
+  ("Opening Disney+ on the Family Room TV…", then the result); a disc's toast carries the shelf line and stays until you
+  tap it. Tapping the rest of a pick still opens the movie's page, and the Continue Watching row updates after a play.
 - Sign-in rules (below), the Home Assistant TV hook's secret check, the installer, the OpenRC service and the nightly
   backup.
 
