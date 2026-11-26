@@ -351,3 +351,51 @@ def test_handle_tv_event_directly(client, tv):
         assert app.ha.handle_tv_event(con, "off", None, evening(1, 19, 10))["action"] == "closed"
         assert not con.in_transaction
     assert vrow(v)["watched_seconds"] == 600
+
+
+# ------------------------------------------------------------------------------------------------ where the TV is (GET /api/tv)
+def tv_state(client):
+    r = client.get("/api/tv")
+    assert r.status_code == 200
+    return r.get_json()
+
+
+def test_tv_state_is_null_before_any_event(client, tv):
+    assert tv_state(client) == {"state": None, "source": None, "at": None}
+
+
+def test_tv_state_follows_events_with_nothing_picked(client, tv):
+    at = evening(1, 19, 31)
+    assert event(client, "on", "Disney+", at)["action"] == "ignored"   # no viewing is on for tonight
+    assert tv_state(client) == {"state": "on", "source": "Disney+", "at": at.isoformat()}
+
+
+def test_an_out_of_order_event_does_not_change_tv_state(client, tv):
+    newer = evening(1, 19, 31)
+    event(client, "on", "Disney+", newer)
+    assert event(client, "off", None, evening(1, 19, 0))["reason"] == "out of order"
+    assert event(client, "on", "YouTube", newer)["reason"] == "duplicate"
+    assert tv_state(client) == {"state": "on", "source": "Disney+", "at": newer.isoformat()}
+
+
+def test_off_keeps_no_source(client, tv):
+    event(client, "on", "Disney+", evening(1, 19, 31))
+    off = evening(1, 20, 21)
+    event(client, "off", None, off)
+    assert tv_state(client) == {"state": "off", "source": None, "at": off.isoformat()}
+
+
+def test_tv_state_is_kept_while_a_viewing_is_on(client, tv):
+    tonight(client, tv["home_alone"])
+    at = evening(1, 19, 31)
+    assert event(client, "on", "Disney+", at)["action"] == "opened"
+    assert tv_state(client) == {"state": "on", "source": "Disney+", "at": at.isoformat()}
+
+
+def test_tv_is_on_for_the_on_states_only():
+    assert all(app.ha.tv_is_on(s) for s in ("on", "playing", "paused", "idle", "buffering"))
+    assert not any(app.ha.tv_is_on(s) for s in ("off", "standby", "unavailable", "", None))
+
+
+def test_api_tv_needs_sign_in(anon_client):
+    assert anon_client.get("/api/tv", headers={"Cf-Connecting-Ip": "1.2.3.4"}).status_code == 401

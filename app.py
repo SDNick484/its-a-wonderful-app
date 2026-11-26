@@ -32,6 +32,8 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /api/theme        GET today's Advent theme {"theme": "fireplace"|"toystore"|"tree"|"sleigh"|null, "until": "YYYY-MM-DD"}
   /api/theme/prefs  GET / PUT {"enabled"?, "mode"?: "system"|"light"|"dark"}: Themes on or off, the plain look
   /posters/<name>   the local poster and backdrop copies
+  /api/tv           GET where the TV was at its last event: {"state": "on"|"off"|..., "source": "Disney+"|null, "at": ISO}
+                    (all null before the first event)
   /hooks/tv         Home Assistant TV events {"state", "source", "at"}: open and close the night's TV session, which
                     sets the finish guess (auth.hook_required: X-Hook-Secret; docs/home-assistant.md)
   /static/<path>    CSS, ES modules, fonts: no auth (no data in them)
@@ -527,6 +529,13 @@ def poster_file(name):
     if not images.NAME_RE.match(name):
         return make_err(404, "No such image.")
     return send_from_directory(POSTER_DIR, name, max_age=86400)
+
+
+@app.get("/api/tv")
+@editor_required
+def api_tv():
+    """The Family Room TV's last state from the webhook (ha.tv_state): {"state", "source", "at"}, null until an event."""
+    return jsonify(ha.tv_state(get_db()))
 
 
 # ============================================================================= hooks
