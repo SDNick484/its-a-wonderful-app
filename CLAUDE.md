@@ -32,9 +32,11 @@ copies a write to `app.X` into each module that holds `X`. A new module goes in 
    `node --check` on every `static/js/*.js`. `static/js/package.json` (`{"type": "module"}`) is what makes Node
    parse them as modules; without it a broken file passes. The CI jobs call `scripts/gate.sh` steps, so a check
    added to CI goes in the gate script.
-5. **Auth.** There is no anonymous view. Every route has `@editor_required` (LAN host, Cloudflare Access JWT for
-   `ADMIN_EMAILS`, or `WONDERFUL_API_KEY`), except `/hooks/*` (`@hook_required`: `X-Hook-Secret` =
-   `HA_HOOK_SECRET`) and `/static/`. `tests/test_auth.py` walks every rule in `app.url_map`; a new route must pass it.
+5. **Auth.** There is no anonymous view of any data. Every route has `@editor_required` (LAN host, Cloudflare
+   Access JWT for `ADMIN_EMAILS`, or `WONDERFUL_API_KEY`), except `/hooks/*` (`@hook_required`: `X-Hook-Secret` =
+   `HA_HOOK_SECRET`), `/static/`, and `/healthz` (`@public`: `{"status": "ok"}` or a 503, nothing else, so a
+   monitor that cannot sign in can tell the app is up). `tests/test_auth.py` walks every rule in `app.url_map` and
+   pins the public routes in `PUBLIC_ROUTES`; a new route must pass it, and adding a public one is Nick's call.
 6. **Phone-first.** Android Chrome at 412 px is the primary screen: at least 3 poster columns and no horizontal
    scroll at 412 px and 360 px, tap targets ≥ 44 px, text contrast ≥ 4.5:1 (WCAG AA) including over themes. A UI
    change gets a Playwright check in the smoke tests (`tests/test_ui_*.py`, run by the ui-smoke job). Colours in
