@@ -189,7 +189,7 @@ placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `
              - choose:
                  - conditions:
                      - condition: template
-                       value_template: "{{ (content_id | default('')) | string is match('^[0-9]{1,12}$') and source == 'Netflix' }}"
+                       value_template: "{{ content_id is not none and (content_id | default('')) | string is match('^[0-9]{1,12}$') and source == 'Netflix' }}"
                    sequence:
                      - action: webostv.command
                        target:
@@ -201,7 +201,7 @@ placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `
                            contentId: "m=https://www.netflix.com/watch/{{ content_id }}&source_type=4"
                  - conditions:
                      - condition: template
-                       value_template: "{{ (content_id | default('')) | string is match('^[A-Za-z0-9_-]{1,64}$') and source == 'YouTube' }}"
+                       value_template: "{{ content_id is not none and (content_id | default('')) | string is match('^[A-Za-z0-9_-]{1,64}$') and source == 'YouTube' }}"
                    sequence:
                      - action: webostv.command
                        target:
@@ -244,7 +244,8 @@ placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `
    1 to 64 letters, digits, `_` or `-`, it sends the TV's launcher a command that starts that title in the app
    (`webostv.command`, `system.launcher/launch`, from the LG webOS TV integration); in every other case, including a
    call with no `content_id`, it selects the app with `media_player.select_source` as before. The script checks the
-   id itself, so a caller other than the automation below cannot put anything else into the launch command. A disc only starts Watch a Bluray; that activity is trusted to put the TV on `AV Receiver`.
+   id itself (a null counts as no id), so a caller other than the automation below cannot put anything else into the
+   launch command. A disc only starts Watch a Bluray; that activity is trusted to put the TV on `AV Receiver`.
 
    The two launch commands were tried on an LG webOS TV on 2026-11-26: Netflix started the title playing by itself,
    with no profile picker, and YouTube went straight to a film owned through Movies Anywhere. Disney+ ignored the

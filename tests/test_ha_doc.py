@@ -108,6 +108,8 @@ def test_the_script_takes_an_optional_content_id_and_falls_back_to_selecting_the
     youtube_cond = after_wait.split("source == 'YouTube'")[0].rsplit("value_template:", 1)[1]
     assert "string is match('^[0-9]{1,12}$')" in netflix_cond, netflix_cond
     assert "string is match('^[A-Za-z0-9_-]{1,64}$')" in youtube_cond, youtube_cond
+    # a YAML null would stringify to "None", which the YouTube pattern accepts, so null is excluded explicitly
+    assert "content_id is not none" in netflix_cond and "content_id is not none" in youtube_cond
     assert "id: netflix" in after_wait and "id: youtube.leanback.v4" in after_wait
     assert "entity_id: media_player.family_room_tv" in after_wait
 
