@@ -23,9 +23,9 @@ copies a write to `app.X` into each module that holds `X`. A new module goes in 
    an import map, so never hand-edit `?v=`. A new module goes in `JS_MODULES` in `tests/conftest.py`;
    `tests/test_js_modules.py` checks the graph.
 2. **Schema.** Changes go through the idempotent `db.migrate()`, which works from every earlier version, and
-   `SCHEMA_VERSION` is bumped (it is `"2"`; v2 added the copy-kind columns on `matinee_sync`, and the rest of spec §6 was
-   already in v1, so most tasks need no migration). No manual DB step on the host, ever.
-3. **Tests.** pytest with recorded fixtures in `tests/fixtures/{tmdb,matinee,anthropic}/` and no live network
+   `SCHEMA_VERSION` is bumped (it is `"3"`; v2 added the copy-kind columns on `matinee_sync`, v3 the `service_titles` table, and
+   the rest of spec §6 was already in v1, so most tasks need no migration). No manual DB step on the host, ever.
+3. **Tests.** pytest with recorded fixtures in `tests/fixtures/{tmdb,matinee,anthropic,wikidata}/` and no live network
    (the `client` fixtures make `urllib.request.urlopen` raise). Add a fixture rather than calling an API. Every
    external call has a miss test and an HTTP-error test. Never skip or loosen a test to get green.
 4. **CI** must stay green: Python 3.10–3.13 on Ubuntu, the Alpine container job, the lint and UI smoke jobs, and

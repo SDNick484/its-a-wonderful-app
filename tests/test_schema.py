@@ -1,5 +1,7 @@
-"""The schema (spec §6, v2 adds the copy kinds), migrate(), and the shared helpers in common.py."""
+"""The schema (spec §6, v2 adds the copy kinds, v3 the Netflix title ids), migrate(), and the shared helpers in
+common.py."""
 import datetime as dt
+import re
 import sqlite3
 
 import pytest
@@ -9,7 +11,7 @@ import common
 import db
 
 TABLES = {"movies", "providers_cache", "services", "people", "person_ratings", "viewings", "viewing_people",
-          "sessions", "matinee_sync", "ai_cache", "meta"}
+          "sessions", "matinee_sync", "ai_cache", "meta", "service_titles"}
 
 
 def columns(con, table):
@@ -20,12 +22,12 @@ def test_migrate_creates_every_table_and_is_idempotent(tmp_path):
     con = db.connect(tmp_path / "w.db"); db.migrate(con); db.migrate(con)
     names = {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
     assert {"movies","providers_cache","services","people","person_ratings","viewings",
-            "viewing_people","sessions","matinee_sync","ai_cache","meta"} <= names
-    assert con.execute("select v from meta where k='schema'").fetchone()[0] == "2"
+            "viewing_people","sessions","matinee_sync","ai_cache","meta","service_titles"} <= names
+    assert con.execute("select v from meta where k='schema'").fetchone()[0] == "3"
 
 
-def test_schema_version_is_two():
-    assert db.SCHEMA_VERSION == "2"
+def test_schema_version_is_three():
+    assert db.SCHEMA_VERSION == "3"
 
 
 V1_MATINEE_SYNC = """
@@ -64,11 +66,51 @@ def test_v1_database_gains_the_copy_columns(tmp_path):
     assert tuple(row[k] for k in ("movie_id", "matinee_title_id", "owned_summary", "location_path", "matinee_rating",
                                   "checked_at")) == before
     assert con.execute("SELECT count(*) FROM matinee_sync").fetchone()[0] == 1
-    assert con.execute("SELECT v FROM meta WHERE k='schema'").fetchone()[0] == "2"
+    assert con.execute("SELECT v FROM meta WHERE k='schema'").fetchone()[0] == "3"
+    assert columns(con, "service_titles")      # a v1 database gains the v3 table in the same step
+
+
+def v2_schema():
+    """The v2 schema: today's SCHEMA without the v3 table (v3 added service_titles and nothing else)."""
+    old = re.sub(r"CREATE TABLE IF NOT EXISTS service_titles \(.*?\);\n", "", db.SCHEMA, flags=re.S)
+    assert "service_titles" not in old and old != db.SCHEMA
+    return old
+
+
+def test_v2_database_gains_service_titles(tmp_path):
+    con = db.connect(tmp_path / "w.db")
+    con.executescript(v2_schema())
+    con.execute("INSERT INTO meta (k, v) VALUES ('schema', '2')")
+    movie = con.execute("INSERT INTO movies (tmdb_id, title, year) VALUES (10719, 'Elf', 2003)").lastrowid
+    con.execute("INSERT INTO providers_cache (movie_id, data, fetched_at) VALUES (?, '{}', '2026-11-19T07:26:02Z')", (movie,))
+    con.commit()
+    assert "service_titles" not in {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
+    before = tuple(con.execute("SELECT * FROM movies").fetchone())
+    db.migrate(con); db.migrate(con)
+    assert columns(con, "service_titles") == ["movie_id", "service", "title_id", "manual", "checked_at"]
+    assert tuple(con.execute("SELECT * FROM movies").fetchone()) == before
+    assert con.execute("SELECT count(*) FROM movies").fetchone()[0] == 1
+    assert con.execute("SELECT count(*) FROM providers_cache").fetchone()[0] == 1
+    assert con.execute("SELECT count(*) FROM service_titles").fetchone()[0] == 0
+    assert con.execute("SELECT v FROM meta WHERE k='schema'").fetchone()[0] == "3"
+
+
+def test_service_titles_rules(tmp_path):
+    con = db.connect(tmp_path / "w.db"); db.migrate(con)
+    movie = con.execute("INSERT INTO movies (tmdb_id, title) VALUES (10719, 'Elf')").lastrowid
+    con.execute("INSERT INTO service_titles (movie_id, service, title_id) VALUES (?, 'netflix', '80183187')", (movie,))
+    row = con.execute("SELECT * FROM service_titles").fetchone()
+    assert (row["manual"], row["checked_at"]) == (0, None)
+    with pytest.raises(sqlite3.IntegrityError):    # one id per movie and service
+        con.execute("INSERT INTO service_titles (movie_id, service) VALUES (?, 'netflix')", (movie,))
+    with pytest.raises(sqlite3.IntegrityError):    # a movie that exists
+        con.execute("INSERT INTO service_titles (movie_id, service) VALUES (99, 'netflix')")
+    con.execute("DELETE FROM movies WHERE id=?", (movie,))
+    assert con.execute("SELECT count(*) FROM service_titles").fetchone()[0] == 0
 
 
 def test_the_whole_spec_schema_is_there_now(tmp_path):
-    # Every column of spec §6 exists from v1; v2 adds only the two copy-kind columns on matinee_sync.
+    # Every column of spec §6 exists from v1; v2 adds only the two copy-kind columns on matinee_sync, v3 the service_titles table.
     con = db.connect(tmp_path / "w.db"); db.migrate(con)
     assert columns(con, "movies") == [
         "id", "tmdb_id", "tmdb_type", "title", "year", "runtime_min", "certification", "certification_override",
@@ -86,6 +128,7 @@ def test_the_whole_spec_schema_is_there_now(tmp_path):
         "movie_id", "matinee_title_id", "owned_summary", "location_path", "matinee_rating", "matinee_last_watch",
         "pushed_rating", "rating_owner", "conflict_rating", "checked_at", "has_physical", "has_digital"]
     assert columns(con, "ai_cache") == ["q_norm", "list_hash", "result", "created_at"]
+    assert columns(con, "service_titles") == ["movie_id", "service", "title_id", "manual", "checked_at"]
     assert set(r[0] for r in con.execute("select name from sqlite_master where type='table'")) == TABLES
 
 

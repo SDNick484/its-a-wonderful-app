@@ -148,6 +148,54 @@ def tmdb_down(client, monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", boom)
 
 
+# ------------------------------------------------------------------------------------------------ Wikidata, recorded
+WIKIDATA_FIXTURES = FIXTURES / "wikidata"
+WIKIDATA_HOST = "query.wikidata.org"
+
+
+class FakeWikidata:
+    """Stands in for urllib.request.urlopen for Wikidata's query service, answering with the recorded fixture named
+    by `.file` (default netflix_klaus.json: one binding, 80183187) and recording each request's URL, headers and
+    timeout. A test sets `.body` (bytes) to answer with something else, or `.error` (an exception, or an int for an
+    HTTP status) to make every call fail, or `.on_request` (a callable) to run something while Wikidata "thinks".
+    Requests to any other host go to `other`, the urlopen that was in force before, so this composes with
+    tmdb_fixtures (list that first)."""
+
+    def __init__(self, other):
+        self.other = other
+        self.urls, self.headers, self.timeouts = [], [], []
+        self.file, self.body, self.error, self.on_request = "netflix_klaus.json", None, None, None
+
+    @property
+    def calls(self):
+        return len(self.urls)
+
+    def __call__(self, req, timeout=None):
+        if urllib.parse.urlparse(req.full_url).netloc != WIKIDATA_HOST:
+            return self.other(req, timeout=timeout)
+        self.urls.append(req.full_url)
+        self.headers.append(dict(req.header_items()))
+        self.timeouts.append(timeout)
+        if self.on_request:
+            self.on_request()
+        if isinstance(self.error, int):
+            raise urllib.error.HTTPError(req.full_url, self.error, "Error", {}, None)
+        if self.error is not None:
+            raise self.error
+        return io.BytesIO(self.body if self.body is not None else (WIKIDATA_FIXTURES / self.file).read_bytes())
+
+
+@pytest.fixture
+def wikidata_fixtures(client, monkeypatch):
+    """Wikidata answers from the recorded fixtures (no live network). Returns the FakeWikidata with its .urls and
+    .headers lists. Use it with `client`; list tmdb_fixtures before it in a test that needs both."""
+    import urllib.request
+
+    fake = FakeWikidata(urllib.request.urlopen)
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    return fake
+
+
 # ------------------------------------------------------------------------------------------------ Matinee, recorded
 MATINEE_FIXTURES = FIXTURES / "matinee"
 MATINEE_KEY = "matinee-test-key"

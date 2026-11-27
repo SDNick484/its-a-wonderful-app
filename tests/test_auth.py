@@ -26,7 +26,7 @@ def test_hook_requires_secret(client, monkeypatch):
 # ------------------------------------------------------------------------------------------------- health
 def test_health(client):
     r = client.get("/api/health")
-    assert r.status_code == 200 and r.get_json() == {"ok": True, "schema": "2"}
+    assert r.status_code == 200 and r.get_json() == {"ok": True, "schema": "3"}
 
 
 def test_index_serves_the_app_with_versioned_modules(client):
