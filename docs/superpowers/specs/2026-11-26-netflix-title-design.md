@@ -83,10 +83,14 @@ with no profile picker and no extra button. Disney+ ignored five formats of the 
 
 ### 4.3 Home Assistant
 
-- The automation's condition also requires `content_id`, when present, to be digits only, and passes it to the
-  script (empty when absent).
-- The script's stream branch, after Watch TV and the wait: when `content_id` is non-empty and `source` is `Netflix`,
-  it sends the launch command of §3; otherwise it selects the source as today. An older app that sends no
+- The automation's condition also requires `content_id`, when present, to match `^[A-Za-z0-9_-]{1,64}$`, and passes
+  it to the script (empty when absent). This app only ever sends digits.
+- The script's stream branch, after Watch TV and the wait: when `content_id` is non-empty and `source` names an app
+  the script knows how to start on a title, it sends that app's launch command; otherwise it selects the source as
+  today. It knows two: `Netflix` (the command of §3) and `YouTube` (`id: youtube.leanback.v4`,
+  `contentId: "v=<id>"`, which on 2026-11-26 went straight to a film owned through Movies Anywhere). This app sends
+  a `content_id` for Netflix only; YouTube is there because Matinee will reuse the script for owned films (Claude's
+  call, raised with Nick, not objected to). An older app that sends no
   `content_id` keeps working, and a newer app talking to the older automation just opens the app.
 - `docs/home-assistant.md` shows the new script and automation. Nick's live ones are updated by Claude after the code
   is merged, on his go-ahead.

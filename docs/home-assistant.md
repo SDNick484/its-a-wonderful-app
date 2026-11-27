@@ -118,7 +118,17 @@ the answer:
 ```
 
 `mode` is `stream` (open an app) or `disc` (start the Blu-ray). `source` is the TV's input name: a `tv_source` from
-`data/services.json`, `Fandango at Home` for a digital copy, or `AV Receiver` for a disc. Two things to make in
+`data/services.json`, `Fandango at Home` for a digital copy, or `AV Receiver` for a disc.
+
+For a Netflix movie whose Netflix title id the app knows (found automatically, or saved in the **Netflix link** field
+on the movie's page), the payload also carries that id, and the TV starts the movie itself instead of just opening the
+app:
+
+```json
+{"event": "wonderful_play", "mode": "stream", "source": "Netflix", "title": "Example Movie", "content_id": "80183187"}
+```
+
+`content_id` is 1 to 12 digits and is sent for Netflix only; every other payload has no `content_id` at all. Two things to make in
 Home Assistant, a script that does the work and an automation that receives the webhook. The entity names are
 placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `switch.watch_tv` and
 `switch.watch_a_bluray` (the remote's activities as switches).
@@ -147,6 +157,10 @@ placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `
        required: true
        selector:
          text:
+     content_id:
+       description: "Optional: the title to start in the app, e.g. a Netflix title id. Empty just opens the app"
+       selector:
+         text:
    sequence:
      - choose:
          - conditions:
@@ -172,11 +186,37 @@ placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `
                then:
                  - delay:
                      seconds: 5
-             - action: media_player.select_source
-               target:
-                 entity_id: media_player.family_room_tv
-               data:
-                 source: "{{ source }}"
+             - choose:
+                 - conditions:
+                     - condition: template
+                       value_template: "{{ content_id is not none and (content_id | default('')) | string is match('^[0-9]{1,12}$') and source == 'Netflix' }}"
+                   sequence:
+                     - action: webostv.command
+                       target:
+                         entity_id: media_player.family_room_tv
+                       data:
+                         command: system.launcher/launch
+                         payload:
+                           id: netflix
+                           contentId: "m=https://www.netflix.com/watch/{{ content_id }}&source_type=4"
+                 - conditions:
+                     - condition: template
+                       value_template: "{{ content_id is not none and (content_id | default('')) | string is match('^[A-Za-z0-9_-]{1,64}$') and source == 'YouTube' }}"
+                   sequence:
+                     - action: webostv.command
+                       target:
+                         entity_id: media_player.family_room_tv
+                       data:
+                         command: system.launcher/launch
+                         payload:
+                           id: youtube.leanback.v4
+                           contentId: "v={{ content_id }}"
+               default:
+                 - action: media_player.select_source
+                   target:
+                     entity_id: media_player.family_room_tv
+                   data:
+                     source: "{{ source }}"
          - conditions:
              - condition: template
                value_template: "{{ mode == 'disc' }}"
@@ -199,14 +239,28 @@ placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `
    any state other than `off`, `unavailable` or `unknown` (a TV that reports `idle`, `playing`, `paused` or `buffering`
    counts), and gives up if it never is. Because the wait checks the TV's state rather than watching for a change, a TV
    that comes on just before the wait starts is not missed. If the script had to start Watch TV it gives the TV 5 more
-   seconds to finish starting, even when starting the activity only returned once the TV was up, and then selects the
-   app. A disc only starts Watch a Bluray; that activity is trusted to put the TV on `AV Receiver`.
+   seconds to finish starting, even when starting the activity only returned once the TV was up. Then it opens the
+   app: when `source` is `Netflix` and `content_id` is 1 to 12 digits, or `source` is `YouTube` and `content_id` is
+   1 to 64 letters, digits, `_` or `-`, it sends the TV's launcher a command that starts that title in the app
+   (`webostv.command`, `system.launcher/launch`, from the LG webOS TV integration); in every other case, including a
+   call with no `content_id`, it selects the app with `media_player.select_source` as before. The script checks the
+   id itself (a null counts as no id), so a caller other than the automation below cannot put anything else into the
+   launch command. A disc only starts Watch a Bluray; that activity is trusted to put the TV on `AV Receiver`.
+
+   The two launch commands were tried on an LG webOS TV on 2026-11-26: Netflix started the title playing by itself,
+   with no profile picker, and YouTube went straight to a film owned through Movies Anywhere. Disney+ ignored the
+   same idea in five formats, so it isn't here. This app sends a `content_id` for Netflix only; the YouTube case is
+   for other callers of the script (a Matinee automation starting an owned film, say). A different TV brand needs its
+   own launch action in place of `webostv.command`; without one the `default` branch still opens the app.
 
 2. **The automation** (**Create → Edit in YAML**). It checks the payload and starts the script with `script.turn_on`,
    which returns at once: calling the script as an action would hold the webhook's answer for the script's whole
    run, and the app only waits 5 seconds. `local_only: true` limits the webhook to requests from your own network, and
-   `source` is only ever passed to `media_player.select_source` on the one TV, so the worst a leaked id can do is change
-   that TV's app. Replace `<a long random id>` with a long random string of your own (the id is the only credential;
+   the TV is the only thing it touches (`source` goes to `media_player.select_source` and `content_id` to the TV's
+   launcher), so the worst a leaked id can do is change that TV's app or title. The condition lets `content_id`
+   through only when it is left out or is a string of 1 to 64 letters, digits, `_` or `-` (this app only sends
+   digits), so nothing else can end up in the launch address; a payload without one still works and just opens the
+   app. Replace `<a long random id>` with a long random string of your own (the id is the only credential;
    `openssl rand -hex 24` makes one):
 
    ```yaml
@@ -224,7 +278,10 @@ placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `
          {{ trigger.json is defined
             and trigger.json.event == 'wonderful_play'
             and trigger.json.mode in ['stream', 'disc']
-            and (trigger.json.source | default('')) | length > 0 }}
+            and (trigger.json.source | default('')) | length > 0
+            and (trigger.json.content_id is not defined
+                 or (trigger.json.content_id is string
+                     and trigger.json.content_id is match('^[A-Za-z0-9_-]{1,64}$'))) }}
    actions:
      - action: script.turn_on
        target:
@@ -233,6 +290,7 @@ placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `
          variables:
            mode: "{{ trigger.json.mode }}"
            source: "{{ trigger.json.source }}"
+           content_id: "{{ trigger.json.content_id | default('') }}"
    ```
 
 3. **Tell the app where it is.** The URL is the webhook's address on Home Assistant:
@@ -263,3 +321,14 @@ reports "The TV didn't answer" once the TV events automation (above) is set up a
 only "Sent to the TV." before that, since it has no way to tell. So check the first play in **Settings → Automations → (the automation) →
 Traces**: a trace for it means the id matched; if there is none, fix the id in the automation or in
 `HA_PLAY_WEBHOOK_URL`. The script's own **Traces** show which branch ran and whether the 60 second wait timed out.
+
+To see a movie start by itself, add a title id (a Netflix one here; `80183187` is *Klaus*) and use the Netflix input:
+
+```sh
+curl -s -i -X POST 'http://ha.example.com:8123/api/webhook/<a long random id>' \
+  -H 'Content-Type: application/json' \
+  -d '{"event": "wonderful_play", "mode": "stream", "source": "Netflix", "title": "Example Movie", "content_id": "80183187"}'
+```
+
+A payload with a `content_id` that has anything else in it, such as `80183187; x`, is stopped by the automation's
+condition and does nothing (its trace stops at the condition).

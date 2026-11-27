@@ -94,7 +94,14 @@ def set_status(con, key, status):
     app.providers.set_status(con, {"key": key, "status": status})
 
 
-def movie(title="Home Alone", owned=None, **tiers):
+def set_title_id(con, movie_id, title_id, service="netflix", manual=0):
+    """A stored title id, written straight into the table (so a test can store what the API would refuse)."""
+    con.execute("INSERT OR REPLACE INTO service_titles (movie_id, service, title_id, manual, checked_at) VALUES (?,?,?,?,?)",
+                (movie_id, service, title_id, manual, app.now_iso()))
+    con.commit()
+
+
+def movie(title="Home Alone", owned=None, title_id=None, **tiers):
     """A movie in a fresh app context's database; `owned` is (summary, shelf, physical, digital)."""
     with app.app.app_context():
         con = db()
@@ -102,6 +109,8 @@ def movie(title="Home Alone", owned=None, **tiers):
         set_providers(con, movie_id, **tiers)
         if owned:
             set_owned(con, movie_id, *owned)
+        if title_id:
+            set_title_id(con, movie_id, title_id)
         return movie_id
 
 
@@ -139,10 +148,10 @@ def test_options_order(client, ha_play):
                      ads=["peacock"], rent=["apple_tv"])
     got = options(movie_id)
     assert got == {
-        "stream": [{"service": FANDANGO, "name": "Fandango at Home", "owned": True},
-                   {"service": "netflix", "name": "Netflix", "owned": False},
-                   {"service": "disney_plus", "name": "Disney+", "owned": False},
-                   {"service": "peacock", "name": "Peacock", "owned": False}],
+        "stream": [{"service": FANDANGO, "name": "Fandango at Home", "owned": True, "direct": False},
+                   {"service": "netflix", "name": "Netflix", "owned": False, "direct": False},
+                   {"service": "disney_plus", "name": "Disney+", "owned": False, "direct": False},
+                   {"service": "peacock", "name": "Peacock", "owned": False, "direct": False}],
         "disc": {"label": f"{BLURAY} · {DIGITAL} · {SHELF}"},
         "auto": "stream"}
 
@@ -154,20 +163,20 @@ def test_free_services_come_after_subscribed_ones_in_services_order(client, ha_p
 
 def test_fandango_listed_once_as_owned(client, ha_play):
     movie_id = movie(owned=(DIGITAL, None, 0, 1), flatrate=[FANDANGO])
-    assert options(movie_id) == {"stream": [{"service": FANDANGO, "name": "Fandango at Home", "owned": True}],
+    assert options(movie_id) == {"stream": [{"service": FANDANGO, "name": "Fandango at Home", "owned": True, "direct": False}],
                                  "disc": None, "auto": "stream"}
 
 
 def test_fandango_on_tmdb_alone_is_not_owned(client, ha_play):
     movie_id = movie(flatrate=[FANDANGO])   # subscribed in the seed data, so a plain option
-    assert options(movie_id)["stream"] == [{"service": FANDANGO, "name": "Fandango at Home", "owned": False}]
+    assert options(movie_id)["stream"] == [{"service": FANDANGO, "name": "Fandango at Home", "owned": False, "direct": False}]
 
 
 def test_digital_copy_ignores_the_subscription_status(client, ha_play):
     movie_id = movie("Elf", owned=(DIGITAL, None, 0, 1))
     with app.app.app_context():
         set_status(db(), FANDANGO, "ignore")
-    assert options(movie_id)["stream"] == [{"service": FANDANGO, "name": "Fandango at Home", "owned": True}]
+    assert options(movie_id)["stream"] == [{"service": FANDANGO, "name": "Fandango at Home", "owned": True, "direct": False}]
     assert play(client, movie_id)["source"] == "Fandango at Home"
     assert ha_play.bodies == [{"event": "wonderful_play", "mode": "stream", "source": "Fandango at Home", "title": "Elf"}]
 
@@ -248,6 +257,104 @@ def test_disc_mode_needs_a_physical_copy(client, ha_play):
     movie_id = movie("Elf", owned=(DIGITAL, None, 0, 1), flatrate=["netflix"])
     assert play(client, movie_id, {"mode": "disc"}, status=409)["error"] == "We don't own Elf on disc."
     assert ha_play.calls == []
+
+
+# ------------------------------------------------------------------------------------------------ starting the movie itself
+KLAUS_ID = "80183187"
+
+
+def test_netflix_with_an_id_is_direct(client, ha_play):
+    movie_id = movie("Klaus", flatrate=["netflix", "disney_plus"], title_id=KLAUS_ID)
+    assert [(s["service"], s["direct"]) for s in options(movie_id)["stream"]] == [("netflix", True), ("disney_plus", False)]
+    got = play(client, movie_id, {"mode": "stream", "service": "netflix"})
+    assert ha_play.bodies == [{"event": "wonderful_play", "mode": "stream", "source": "Netflix", "title": "Klaus",
+                               "content_id": KLAUS_ID}]
+    assert got["direct"] is True and got["source"] == "Netflix"
+    assert play(client, movie_id)["direct"] is True and ha_play.bodies[-1]["content_id"] == KLAUS_ID   # auto, too
+    assert KLAUS_ID not in json.dumps(options(movie_id))   # the id itself is never in the options
+
+
+def test_netflix_without_an_id_is_not_direct(client, ha_play):
+    movie_id = movie("Klaus", flatrate=["netflix"])
+    assert options(movie_id)["stream"][0]["direct"] is False
+    got = play(client, movie_id)
+    assert ha_play.bodies == [{"event": "wonderful_play", "mode": "stream", "source": "Netflix", "title": "Klaus"}]
+    assert got["direct"] is False
+    with app.app.app_context():
+        set_title_id(db(), movie_id, None)   # "none found" is a stored row with no id
+    assert play(client, movie_id)["direct"] is False and "content_id" not in ha_play.bodies[-1]
+
+
+def test_other_services_are_never_direct(client, ha_play):
+    movie_id = movie("Klaus", flatrate=["disney_plus"], title_id=KLAUS_ID)
+    assert options(movie_id)["stream"][0]["direct"] is False
+    got = play(client, movie_id, {"mode": "stream", "service": "disney_plus"})
+    assert got["direct"] is False and "content_id" not in ha_play.bodies[0]
+    with app.app.app_context():
+        set_title_id(db(), movie_id, KLAUS_ID, service="disney_plus")   # an id kept for another service is no different
+    assert play(client, movie_id)["direct"] is False and "content_id" not in ha_play.bodies[-1]
+
+
+def test_a_digital_copy_ranks_first_and_is_not_direct(client, ha_play):
+    movie_id = movie("Klaus", owned=(DIGITAL, None, 0, 1), flatrate=["netflix"], title_id=KLAUS_ID)
+    assert [(s["service"], s["direct"]) for s in options(movie_id)["stream"]] == [(FANDANGO, False), ("netflix", True)]
+    got = play(client, movie_id)   # auto goes to the digital copy
+    assert (got["source"], got["direct"]) == ("Fandango at Home", False) and "content_id" not in ha_play.bodies[0]
+    got = play(client, movie_id, {"mode": "stream", "service": "netflix"})
+    assert got["direct"] is True and ha_play.bodies[1]["content_id"] == KLAUS_ID
+
+
+def test_an_id_for_a_movie_no_longer_on_netflix_is_unused(client, ha_play):
+    movie_id = movie("Klaus", flatrate=["disney_plus"], rent=["netflix"], title_id=KLAUS_ID)   # TMDB dropped it from flatrate
+    assert [s["service"] for s in options(movie_id)["stream"]] == ["disney_plus"]
+    assert play(client, movie_id, {"mode": "stream", "service": "netflix"}, status=409)["error"] == \
+           "Klaus can't be played on that service."
+    got = play(client, movie_id)
+    assert got["direct"] is False and ha_play.bodies == [
+        {"event": "wonderful_play", "mode": "stream", "source": "Disney+", "title": "Klaus"}]
+
+
+def test_netflix_on_the_free_tiers_is_unused(client, ha_play):
+    # Subscribed but only on an ads tier: TMDB doesn't say the movie is on our plan, so the id is not sent
+    movie_id = movie("Klaus", ads=["netflix"], title_id=KLAUS_ID)
+    assert options(movie_id)["stream"][0]["direct"] is False
+    assert play(client, movie_id)["direct"] is False and "content_id" not in ha_play.bodies[0]
+
+
+def test_netflix_considering_is_unused(client, ha_play):
+    movie_id = movie("Klaus", flatrate=["netflix"], title_id=KLAUS_ID)
+    with app.app.app_context():
+        set_status(db(), "netflix", "considering")
+    assert options(movie_id) == {"stream": [], "disc": None, "auto": None}
+    assert play(client, movie_id, {"mode": "stream", "service": "netflix"}, status=409)["error"] == \
+           "Klaus can't be played on that service."
+    assert ha_play.calls == []
+    with app.app.app_context():   # and not through the ads tier either
+        set_providers(db(), movie_id, flatrate=["netflix"], ads=["netflix"])
+    assert options(movie_id)["stream"][0]["direct"] is False
+    assert play(client, movie_id)["direct"] is False and "content_id" not in ha_play.bodies[0]
+
+
+@pytest.mark.parametrize("bad", ["80183187; rm", "1234567890123", "80183187/../x", "", " 80183187", "80183187\n", "８０１８３１８７"])
+def test_a_stored_id_that_is_not_digits_is_ignored(client, ha_play, bad):
+    movie_id = movie("Klaus", flatrate=["netflix"])
+    with app.app.app_context():
+        set_title_id(db(), movie_id, bad)   # straight into the table, past every check
+    assert options(movie_id)["stream"][0]["direct"] is False
+    got = play(client, movie_id)
+    assert got["direct"] is False and "content_id" not in ha_play.bodies[0]
+
+
+def test_a_twelve_digit_id_is_sent(client, ha_play):
+    movie_id = movie("Klaus", flatrate=["netflix"], title_id="123456789012")
+    assert play(client, movie_id)["direct"] is True and ha_play.bodies[0]["content_id"] == "123456789012"
+
+
+def test_a_direct_play_is_confirmed_like_any_other(client, ha_play):
+    movie_id = movie("Klaus", flatrate=["netflix"], title_id=KLAUS_ID)
+    tv_event("on", "Netflix")
+    got = play(client, movie_id)
+    assert got["direct"] is True and got["confirmed"] is True and got["viewing"]["status"] == "watching"
 
 
 # ------------------------------------------------------------------------------------------------ the route
@@ -374,7 +481,7 @@ def test_off_without_the_setting(client, recorder):
 
 def test_every_movie_answer_carries_play(client, ha_play):
     movie_id = movie("Home Alone", flatrate=["disney_plus"])
-    want = {"stream": [{"service": "disney_plus", "name": "Disney+", "owned": False}], "disc": None, "auto": "stream"}
+    want = {"stream": [{"service": "disney_plus", "name": "Disney+", "owned": False, "direct": False}], "disc": None, "auto": "stream"}
     assert [m["play"] for m in client.get("/api/movies").get_json()] == [want]
     assert client.get(f"/api/movies/{movie_id}").get_json()["play"] == want
     client.post(f"/api/movies/{movie_id}/tonight")

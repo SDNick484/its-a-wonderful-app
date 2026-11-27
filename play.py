@@ -12,6 +12,7 @@ from flask import abort
 import ha
 import movies
 import providers
+import titles
 import viewings
 from common import clean, make_err
 from settings import HA_PLAY_WEBHOOK_URL
@@ -25,10 +26,20 @@ def enabled():
 
 
 # ------------------------------------------------------------------------------------------------ the rule (§5.1)
+def _title_id(con, movie_id):
+    """The movie's stored Netflix id when it is 1 to 12 digits, else None: whatever else is in the table (a bad value
+    written straight into it) never reaches Home Assistant."""
+    title_id = titles.get(con, movie_id)
+    return title_id if isinstance(title_id, str) and titles.ID_RE.fullmatch(title_id) else None
+
+
 def _stream_options(con, movie_id, digital):
-    """The services the TV can open the movie on, best first, each {"service", "name", "owned", "tv_source"}: our
-    digital copy (Fandango at Home, whatever its status), then subscribed `flatrate` services, then known `free` or
-    `ads` services not set to Ignore, the last two in Subscriptions order. A service needs a tv_source and appears once."""
+    """The services the TV can open the movie on, best first, each {"service", "name", "owned", "tv_source", "direct"}:
+    our digital copy (Fandango at Home, whatever its status), then subscribed `flatrate` services, then known `free` or
+    `ads` services not set to Ignore, the last two in Subscriptions order. A service needs a tv_source and appears once.
+    `direct` is true for Netflix alone, and only when the movie is `flatrate` there, Netflix is Subscribed and a title
+    id is stored: then the TV can start the movie itself. Anything else (a digital copy ranking first, Netflix only
+    Considering, a movie that has left Netflix) never carries the id."""
     tiers = providers.cached(con, movie_id)[0]
     services = [r for r in con.execute("SELECT key, name, status, tv_source FROM services ORDER BY rowid")
                 if clean(r["tv_source"])]
@@ -36,8 +47,10 @@ def _stream_options(con, movie_id, digital):
 
     def add(row, owned=False):
         if all(f["service"] != row["key"] for f in found):
+            direct = (row["key"] == titles.NETFLIX and row["status"] == "subscribed"
+                      and row["key"] in tiers["flatrate"] and _title_id(con, movie_id) is not None)
             found.append({"service": row["key"], "name": row["name"], "owned": owned,
-                          "tv_source": clean(row["tv_source"])})
+                          "tv_source": clean(row["tv_source"]), "direct": direct})
 
     if digital:
         for r in services:
@@ -66,12 +79,12 @@ def _parts(con, movie_id):
 
 
 def options(con, movie_id):
-    """None when Play on TV is off. Otherwise {"stream": [{"service", "name", "owned"}], "disc": {"label"} | None,
-    "auto": "stream" | "disc" | None}: what can play the movie, and what the main page's Play would start."""
+    """None when Play on TV is off. Otherwise {"stream": [{"service", "name", "owned", "direct"}], "disc": {"label"} |
+    None, "auto": "stream" | "disc" | None}: what can play the movie, and what the main page's Play would start."""
     if not enabled():
         return None
     stream, disc = _parts(con, movie_id)
-    return {"stream": [{k: s[k] for k in ("service", "name", "owned")} for s in stream], "disc": disc,
+    return {"stream": [{k: s[k] for k in ("service", "name", "owned", "direct")} for s in stream], "disc": disc,
             "auto": "stream" if stream else "disc" if disc else None}
 
 
@@ -89,21 +102,23 @@ def _body(data):
 
 
 def _target(con, movie_id, title, mode, service):
-    """(mode, source, name, label) for what to start, or a 409 naming what the movie can't do."""
+    """(mode, source, name, label, content_id) for what to start, or a 409 naming what the movie can't do.
+    `content_id` is the Netflix title id for a direct stream option, else None."""
     stream, disc = _parts(con, movie_id)
     if mode == "auto":
         mode = "stream" if stream or disc is None else "disc"   # with nothing at all, the stream sentence
     if mode == "disc":
         if disc is None:
             abort(make_err(409, f"We don't own {title} on disc."))
-        return "disc", ha.RECEIVER, None, disc["label"]
+        return "disc", ha.RECEIVER, None, disc["label"], None
     if service is not None:
         stream = [s for s in stream if s["service"] == service]
         if not stream:
             abort(make_err(409, f"{title} can't be played on that service."))
     if not stream:
         abort(make_err(409, f"{title} isn't on a service we have."))
-    return "stream", stream[0]["tv_source"], stream[0]["name"], None
+    pick = stream[0]
+    return "stream", pick["tv_source"], pick["name"], None, _title_id(con, movie_id) if pick["direct"] else None
 
 
 def _confirm(con, viewing_id, source, started_at):
@@ -132,7 +147,9 @@ def _confirm(con, viewing_id, source, started_at):
 def start(con, movie_id, data, now=None):
     """Play the movie on the Family Room TV. `data` is the request body {"mode": "auto" | "stream" | "disc", "service"?}.
     The movie is marked for tonight first (and stays marked if Home Assistant can't be reached), then Home Assistant is
-    asked and waited for. Returns {"ok", "mode", "source", "name", "label", "viewing", "tv", "sent_at", "confirmed"}:
+    asked and waited for (with `content_id`, the Netflix title id, when the target is a direct option: then the TV
+    starts the movie itself). Returns {"ok", "mode", "source", "name", "label", "direct", "viewing", "tv", "sent_at",
+    "confirmed"}: `direct` says whether `content_id` was sent;
     `sent_at` is the ISO time taken before the request (the page ignores TV events older than it), `confirmed` that the
     TV was already on that input. `viewing` is the movie's open viewing as it stands after the wait, or None when another
     pick set it aside meanwhile and it had no watched time (it was deleted); the answer is still ok then, because Home
@@ -142,14 +159,18 @@ def start(con, movie_id, data, now=None):
         abort(make_err(503, "Play on TV isn't set up."))
     title = movies.get_row(con, movie_id)["title"]
     mode, service = _body(data)
-    mode, source, name, label = _target(con, movie_id, title, mode, service)
+    mode, source, name, label, content_id = _target(con, movie_id, title, mode, service)
     viewing_id = viewings.watch_tonight(con, movie_id)
     now = now or dt.datetime.now(dt.timezone.utc)
     sent_at = now.isoformat(timespec="milliseconds")
     try:
-        ha.post_play({"event": "wonderful_play", "mode": mode, "source": source, "title": title})
+        payload = {"event": "wonderful_play", "mode": mode, "source": source, "title": title}
+        if content_id is not None:
+            payload["content_id"] = content_id
+        ha.post_play(payload)
     except ha.PlayFailed:
         abort(make_err(502, f"Couldn't reach the TV. {title} is on for tonight; use the remote."))
     confirmed = _confirm(con, viewing_id, source, now)
     return {"ok": True, "mode": mode, "source": source, "name": name, "label": label,
-            "viewing": viewings.open_for_movie(con, movie_id), "tv": ha.tv_state(con), "sent_at": sent_at, "confirmed": confirmed}
+            "direct": content_id is not None, "viewing": viewings.open_for_movie(con, movie_id), "tv": ha.tv_state(con),
+            "sent_at": sent_at, "confirmed": confirmed}

@@ -25,6 +25,21 @@ function whereHtml(m) {
     + `<p class="where-credit"><span>Data from ${source}</span> <button type="button" class="btn btn-quiet" id="detail-refresh">Check again</button></p>`;
 }
 
+// The Netflix link field, for a movie that is on Netflix (m.netflix is null otherwise): the title id Stream it starts
+// the movie with, found by the app or set by hand, with a Save that takes a Netflix address, a bare number, or nothing
+// (which clears a hand-set id). `error` is the server's sentence for a link it refused.
+function netflixHtml(m, error = "") {
+  const n = m.netflix;
+  if (!n) return "";
+  const hint = !n.title_id ? "" : n.manual ? "Set by hand" : "Found automatically";
+  return `<h3 class="detail-label"><label for="detail-netflix">Netflix link</label></h3>`
+    + `<div class="log-row"><input type="text" id="detail-netflix" class="field" inputmode="url" autocomplete="off"`
+    + ` autocapitalize="none" spellcheck="false" placeholder="Paste a Netflix address" value="${esc(n.title_id || "")}">`
+    + `<button type="button" class="btn btn-quiet" id="detail-netflix-save">Save</button></div>`
+    + `<p class="netflix-hint" id="detail-netflix-hint">${esc(hint)}</p>`
+    + `<p class="netflix-error" id="detail-netflix-error" role="alert">${esc(error)}</p>`;
+}
+
 // "Matinee says 9, we say 8.6" with the three answers (spec §8.2), or a line saying Matinee hasn't been told yet.
 function syncHtml(m) {
   const c = m.rating_conflict;
@@ -124,6 +139,7 @@ function detailHtml(m) {
     + `<h3 class="detail-label">Watched</h3><div id="detail-log-box">${logHtml(m)}</div><div id="detail-watched">${watchedHtml(m)}</div>`
     + playHtml(m)
     + `<h3 class="detail-label">Where to watch</h3><div id="detail-where-box">${whereHtml(m)}</div>`
+    + `<div id="detail-netflix-box">${netflixHtml(m)}</div>`
     + (m.top_cast.length ? `<h3 class="detail-label">Cast</h3><p class="detail-cast">${m.top_cast.map(esc).join(", ")}</p>` : "")
     + `<h3 class="detail-label"><label for="detail-cert">Certification</label></h3>`
     + `<select id="detail-cert" class="field">`
@@ -186,6 +202,26 @@ async function refreshProviders(m, quiet) {
   if (box && box.isConnected && Number(location.hash.split("/")[2]) === m.id) box.innerHTML = whereHtml(m);
   keepInState({ id: m.id, where_to_watch: m.where_to_watch });
   renderGrid();   // the card behind this screen shows the new line when the person goes back
+}
+
+// Save what is in the Netflix link field. The server answers the movie: its id and its Play options (which now say
+// whether Netflix starts the movie itself) join `m` and the card behind this screen; a link it refuses is its sentence
+// under the field, and the old id stays. Nothing in the Play section's drawing depends on the id, so it is not
+// redrawn (that would wipe the status line of a play that is under way).
+async function saveNetflix(m, button) {
+  const input = document.getElementById("detail-netflix");
+  const box = document.getElementById("detail-netflix-box");
+  const here = () => box.isConnected && Number(location.hash.split("/")[2]) === m.id;
+  button.disabled = true;
+  let error = "";
+  try {
+    const saved = await api(`/api/movies/${m.id}`, { method: "PUT", body: { netflix_link: input.value } });
+    Object.assign(m, saved);
+    keepInState(saved);
+  } catch (e) {
+    error = e.status ? e.message : "Couldn't save. Check the connection and try again.";
+  }
+  if (here()) box.innerHTML = netflixHtml(m, error);
 }
 
 function redrawWatched(m) {
@@ -380,6 +416,8 @@ function onDetailClick(e) {
   if (tonight) tonightAction(m, tonight.id.slice("detail-".length), tonight);
   const play = e.target.closest("[data-play]");
   if (play && !play.disabled) playAction(m, play);
+  const netflix = e.target.closest("#detail-netflix-save");
+  if (netflix && !netflix.disabled) saveNetflix(m, netflix);
   const rate = e.target.closest("#detail-rate");
   if (rate) openRatingSheet(m, rate, saved => ratingsSaved(m, saved));
   const who = e.target.closest(".who-btn");
@@ -392,6 +430,14 @@ function onDetailClick(e) {
   if (choice) settleConflict(m, choice.dataset.choice, choice);
 }
 
+// Enter in the Netflix link field saves it, as its button does.
+function onDetailKey(e) {
+  if (e.key !== "Enter" || e.target.id !== "detail-netflix" || !detailMovie) return;
+  e.preventDefault();
+  const button = document.getElementById("detail-netflix-save");
+  if (button && !button.disabled) saveNetflix(detailMovie, button);
+}
+
 // Once, at start (main.js): the detail view's one click handler and its poster fallback. #detail outlives every
 // movie shown in it, so a handler added per visit would pile up: each tap would then also act on the movies opened
 // earlier (initials toggled back, a date logged for them too).
@@ -399,6 +445,7 @@ function wireDetail() {
   const box = document.getElementById("detail");
   watchPosters(box);
   box.addEventListener("click", onDetailClick);
+  box.addEventListener("keydown", onDetailKey);
 }
 
 async function showDetail(id) {

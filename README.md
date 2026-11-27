@@ -54,15 +54,17 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   A title with no US providers reads "Rent or buy". The seed script also fetches them.
 - **The Netflix link.** For a movie TMDB lists on Netflix, the app keeps its Netflix title id, the number in
   `netflix.com/title/80183187`; it is what lets **Stream it** start that exact movie on Netflix instead of only opening
-  the app (the TV side comes with the play change that follows). The app finds it by itself: when a movie is added,
+  the app (see **Play on the Family Room TV** below). The app finds it by itself: when a movie is added,
   and in the nightly refresh when it has none yet or the last look is over 30 days old, it asks Wikidata (the query
   service at query.wikidata.org) for the id that goes with the movie's TMDB id. Only that TMDB id is sent, nothing
   about people, ratings or viewing, and a Wikidata that is down or answers something odd changes nothing (one warning
   in the log, and tomorrow's run tries again). A movie Wikidata doesn't know stays without an id, and so does
   everything else about it. To set one by hand, send `PUT /api/movies/<id>` with `{"netflix_link": "<a Netflix
-  address or the number>"}`: `https://www.netflix.com/title/80183187`, a `/watch/` address, one with a locale like
-  `/us/` or a query string, or just `80183187`; anything else is a 400 ("That doesn't look like a Netflix link."). An id
-  set by hand is never changed by the lookup, and `{"netflix_link": ""}` clears it so the lookup fills it again. Each
+  address or the number>"}`, or type it in the **Netflix link** field under "Where to watch" on the movie's page (it
+  shows the current id and says "Found automatically" or "Set by hand", and only appears for a movie on Netflix):
+  `https://www.netflix.com/title/80183187`, a `/watch/` address, one with a locale like `/us/` or a query string, or
+  just `80183187`; anything else is a 400 ("That doesn't look like a Netflix link."). An id
+  set by hand is never changed by the lookup, and saving the field empty (`{"netflix_link": ""}`) clears it so the lookup fills it again. Each
   movie carries `"netflix"`: `{"title_id": "80183187" | null, "manual": false}`, or `null` when TMDB doesn't list it on
   Netflix.
 - **Owned, and where it sits.** The app asks [Matinee](https://github.com/SDNick484/matinee) (`MATINEE_URL` and
@@ -186,14 +188,20 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   Family Room TV." once the TV's own event (the `/hooks/tv` automation) shows it on that input, "Sent to the TV."
   when the TV has never reported, or "The TV didn't answer. Try the remote." after 90 seconds. A disc's messages end
   with the shelf line ("…: go get it!"). With the setting empty the section isn't there. **Watch tonight** stays for
-  the other nights. API: `POST /api/movies/<id>/play` with `{"mode": "auto" | "stream" | "disc", "service"?}` →
-  `{"ok", "mode", "source", "name", "label", "viewing", "tv", "sent_at", "confirmed"}` (409 when the movie can't do
-  that, 502 when Home Assistant doesn't answer, 503 when Play is off), and each movie's `play` (`null` when off,
-  else `{"stream": [{"service", "name", "owned"}], "disc": {"label"} | null, "auto": "stream" | "disc" | null}`).
+  the other nights. **Netflix starts the movie itself** when the app knows its Netflix id (found automatically or set
+  in the **Netflix link** field) and Netflix is a service you subscribe to that TMDB lists it on: the line then reads
+  "Starting Klaus on Netflix…", the request to Home Assistant carries the id as `content_id`, and the script in
+  [docs/home-assistant.md](docs/home-assistant.md) launches the title, so the film plays without anyone reaching for
+  the remote. A Netflix movie with no id, a digital copy that ranks first, and every other service open the app as
+  before. API: `POST /api/movies/<id>/play` with `{"mode": "auto" | "stream" | "disc", "service"?}` →
+  `{"ok", "mode", "source", "name", "label", "direct", "viewing", "tv", "sent_at", "confirmed"}` (`direct` is true when
+  the request to Home Assistant carried a `content_id`; 409 when the movie can't do that, 502 when Home Assistant
+  doesn't answer, 503 when Play is off), and each movie's `play` (`null` when off,
+  else `{"stream": [{"service", "name", "owned", "direct"}], "disc": {"label"} | null, "auto": "stream" | "disc" | null}`).
   **The main page.** The same setting puts a **▶ Play** button on each Continue Watching item and a round ▶ on each of the
   three Surprise picks (never on the big grid), when something can play the movie. It sends `{"mode": "auto"}`: whatever
   the movie's `play.auto` says (a stream when there is one, otherwise the disc). The messages show as a toast
-  ("Opening Disney+ on the Family Room TV…", then the result); a disc's toast carries the shelf line and stays until you
+  ("Opening Disney+ on the Family Room TV…", or "Starting Klaus on Netflix…" for a direct play, then the result); a disc's toast carries the shelf line and stays until you
   tap it. Tapping the rest of a pick still opens the movie's page, and the Continue Watching row updates after a play.
 - Sign-in rules (below), the Home Assistant TV hook's secret check, the installer, the OpenRC service and the nightly
   backup.

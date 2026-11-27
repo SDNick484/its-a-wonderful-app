@@ -607,3 +607,177 @@ def test_play_buttons_fit(browser, on, viewport):          # noqa: F811
     inside = page.evaluate("""() => [...document.querySelectorAll('.pick-play')].every(b => {
         const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; })""")
     assert inside and _side_scroll(page) <= 0 and errors == []
+
+
+# ------------------------------------------------------------------------------------------------ starting the movie itself (netflix-title Task 2)
+KLAUS_ID = "80183187"
+KLAUS_URL = "https://www.netflix.com/title/60031255"
+NOT_A_LINK = "That doesn't look like a Netflix link."
+
+
+def seed_netflix(title="Klaus", title_id=KLAUS_ID, manual=0, **tiers):
+    """A movie on Netflix (flatrate) with a stored Netflix title id, or none. Returns its id."""
+    movie_id = seed(title, **{"flatrate": ["netflix"], **tiers})
+    if title_id:
+        with app.app.app_context():
+            con = app.get_db()
+            con.execute("INSERT INTO service_titles (movie_id, service, title_id, manual, checked_at) VALUES (?, 'netflix', ?, ?, ?)",
+                        (movie_id, title_id, manual, app.now_iso()))
+            con.commit()
+    return movie_id
+
+
+def stored_id(movie_id):
+    with app.app.app_context():
+        return app.titles.get(app.get_db(), movie_id)
+
+
+def puts(page):
+    """A list that fills with the URL of every PUT /api/movies/<id> the page makes from here on."""
+    found = []
+    page.on("request", lambda r: found.append(r.url) if r.method == "PUT" and "/api/movies/" in r.url else None)
+    return found
+
+
+def hint(page):
+    return page.inner_text("#detail-netflix-hint")
+
+
+def test_direct_play_says_starting(browser, on):          # noqa: F811
+    seed_netflix()
+    on.hook.delay = 0.4                                  # long enough to read the opening line
+    page, errors = open_page(browser, on, wait=5000)
+    open_movie(page, "Klaus")
+    page.click("[data-play=stream]")
+    wait_status(page, "Starting Klaus on Netflix…")
+    wait_for(lambda: len(on.hook.calls) == 1)
+    assert on.hook.calls == [{"event": "wonderful_play", "mode": "stream", "source": "Netflix", "title": "Klaus",
+                              "content_id": KLAUS_ID}]
+    wait_status(page, "Sent to the TV.")                 # the sentences after the opening line are the old ones
+    assert errors == []
+
+
+def test_netflix_without_an_id_still_says_opening(browser, on):          # noqa: F811
+    seed_netflix(title_id=None)
+    on.hook.delay = 0.4
+    page, errors = open_page(browser, on, wait=5000)
+    open_movie(page, "Klaus")
+    page.click("[data-play=stream]")
+    wait_status(page, "Opening Netflix on the Family Room TV…")
+    wait_for(lambda: len(on.hook.calls) == 1)
+    assert "content_id" not in on.hook.calls[0] and errors == []
+
+
+def test_the_main_pages_play_says_starting(browser, on):          # noqa: F811
+    seed_paused("Klaus", flatrate=["netflix"])
+    with app.app.app_context():
+        con = app.get_db()
+        con.execute("INSERT INTO service_titles (movie_id, service, title_id, manual, checked_at)"
+                    " SELECT id, 'netflix', ?, 0, ? FROM movies WHERE title='Klaus'", (KLAUS_ID, app.now_iso()))
+        con.commit()
+    on.hook.delay = 0.3
+    page, errors = open_page(browser, on)
+    page.wait_for_selector("#continue-row .continue-play")
+    page.click("#continue-row .continue-play")
+    wait_toast(page, "Starting Klaus on Netflix…")
+    wait_for(lambda: len(on.hook.calls) == 1)
+    assert on.hook.calls[0]["content_id"] == KLAUS_ID and errors == []
+
+
+@pytest.mark.parametrize("viewport", VIEWPORTS)
+def test_netflix_link_field(browser, on, viewport):          # noqa: F811
+    movie_id = seed_netflix()
+    page, errors = open_page(browser, on, viewport)
+    open_movie(page, "Klaus")
+    headings = page.eval_on_selector_all(".detail-label", "els => els.map(e => e.textContent)")
+    assert headings.index("Netflix link") == headings.index("Where to watch") + 1
+    field = page.get_by_label("Netflix link")
+    assert field.input_value() == KLAUS_ID and hint(page) == "Found automatically"
+    assert page.inner_text("#detail-netflix-save") == "Save"
+    assert _height(page, "#detail-netflix") >= 44 and _height(page, "#detail-netflix-save") >= 44
+    assert _side_scroll(page) <= 0
+    # a link from the Netflix site: its number, and now set by hand
+    field.fill(KLAUS_URL)
+    page.click("#detail-netflix-save")
+    page.wait_for_function("document.getElementById('detail-netflix-hint').textContent === 'Set by hand'")
+    assert page.input_value("#detail-netflix") == "60031255" and stored_id(movie_id) == "60031255"
+    # a link that isn't one: the server's sentence, the old id stays
+    page.fill("#detail-netflix", "abc")
+    page.click("#detail-netflix-save")
+    page.wait_for_function("document.getElementById('detail-netflix-error').textContent !== ''")
+    assert page.inner_text("#detail-netflix-error") == NOT_A_LINK
+    assert page.input_value("#detail-netflix") == "60031255" and hint(page) == "Set by hand"
+    assert stored_id(movie_id) == "60031255"
+    assert page.get_attribute("#detail-netflix-error", "role") == "alert"
+    # saving it empty clears the hand-set id and the error
+    page.fill("#detail-netflix", "")
+    page.click("#detail-netflix-save")
+    page.wait_for_function("document.getElementById('detail-netflix-error').textContent === ''"
+                           " && document.getElementById('detail-netflix').value === ''")
+    assert hint(page) == "" and not page.is_visible("#detail-netflix-hint") and stored_id(movie_id) is None
+    assert _height(page, "#detail-netflix") >= 44 and _height(page, "#detail-netflix-save") >= 44
+    assert _side_scroll(page) <= 0 and errors == []
+
+
+def test_a_saved_link_makes_the_next_play_direct(browser, on):          # noqa: F811
+    seed_netflix(title_id=None)
+    on.hook.delay = 0.4
+    page, errors = open_page(browser, on, wait=5000)
+    open_movie(page, "Klaus")
+    assert page.input_value("#detail-netflix") == "" and hint(page) == ""
+    page.fill("#detail-netflix", KLAUS_ID)
+    page.press("#detail-netflix", "Enter")                # the keyboard's Go saves it too
+    page.wait_for_function("document.getElementById('detail-netflix-hint').textContent === 'Set by hand'")
+    page.click("[data-play=stream]")
+    wait_status(page, "Starting Klaus on Netflix…")
+    wait_for(lambda: len(on.hook.calls) == 1)
+    assert on.hook.calls[0]["content_id"] == KLAUS_ID
+    page.click("#back-link")                              # the card behind it, and the page again, know the id
+    page.wait_for_selector("#grid-view", state="visible")
+    open_movie(page, "Klaus")
+    assert page.input_value("#detail-netflix") == KLAUS_ID and hint(page) == "Set by hand" and errors == []
+
+
+def test_no_netflix_field_for_a_movie_not_on_netflix(browser, on):          # noqa: F811
+    seed("Home Alone", flatrate=["disney_plus"], rent=["netflix"])
+    page, errors = open_page(browser, on)
+    open_movie(page, "Home Alone")
+    assert page.locator("#detail-netflix, #detail-netflix-save").count() == 0
+    assert "Netflix link" not in page.inner_text("#detail") and errors == []
+
+
+def test_the_netflix_field_does_not_need_play(browser, env):          # noqa: F811
+    seed_netflix()                                       # HA_PLAY_WEBHOOK_URL is empty: no Play section
+    page, errors = open_page(browser, env)
+    open_movie(page, "Klaus")
+    assert page.locator("[data-play]").count() == 0
+    assert page.input_value("#detail-netflix") == KLAUS_ID and hint(page) == "Found automatically"
+    page.fill("#detail-netflix", "https://www.netflix.com/watch/70000001")
+    page.click("#detail-netflix-save")
+    page.wait_for_function("document.getElementById('detail-netflix-hint').textContent === 'Set by hand'")
+    assert page.input_value("#detail-netflix") == "70000001" and errors == []
+
+
+def test_netflix_field_second_visit(browser, on):          # noqa: F811
+    seed_netflix()
+    seed_netflix("Elf", title_id="70000002")
+    page, errors = open_page(browser, on)
+    saved = puts(page)
+    open_movie(page, "Klaus")
+    page.click("#back-link")
+    page.wait_for_selector("#grid-view", state="visible")
+    open_movie(page, "Klaus")                            # the second visit: a listener left from the first would send twice
+    page.fill("#detail-netflix", "70000003")
+    page.click("#detail-netflix-save")
+    page.wait_for_function("document.getElementById('detail-netflix-hint').textContent === 'Set by hand'")
+    page.wait_for_timeout(300)
+    assert len(saved) == 1, saved
+    page.click("#back-link")
+    page.wait_for_selector("#grid-view", state="visible")
+    open_movie(page, "Elf")                              # and a second movie: its own field, its own one request
+    assert page.input_value("#detail-netflix") == "70000002"
+    page.fill("#detail-netflix", "70000004")
+    page.press("#detail-netflix", "Enter")
+    page.wait_for_function("document.getElementById('detail-netflix-hint').textContent === 'Set by hand'")
+    page.wait_for_timeout(300)
+    assert len(saved) == 2 and saved[0] != saved[1] and errors == []

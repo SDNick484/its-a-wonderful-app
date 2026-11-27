@@ -37,14 +37,29 @@ function playHtml(m) {
 }
 
 // ================================================================= the tap
+// The stream option a tap on `body` would start, or undefined for a disc or when there is none.
+function streamPick(movie, body) {
+  const play = movie.play || {};
+  const kind = body.mode === "auto" ? play.auto : body.mode;
+  if (kind === "disc") return undefined;
+  const stream = play.stream || [];
+  return body.service ? stream.find(s => s.service === body.service) : stream[0];
+}
+
 // What the opening line calls the target: the service's name, or "the disc".
 function openingName(movie, body) {
   const play = movie.play || {};
   const kind = body.mode === "auto" ? play.auto : body.mode;
   if (kind === "disc") return "the disc";
-  const stream = play.stream || [];
-  const pick = body.service ? stream.find(s => s.service === body.service) : stream[0];
+  const pick = streamPick(movie, body);
   return pick ? pick.name : movie.title;
+}
+
+// "Starting Klaus on Netflix…" when the TV will start the movie itself (a direct option), else "Opening Netflix on the
+// Family Room TV…".
+function openingLine(movie, body) {
+  const pick = streamPick(movie, body);
+  return pick?.direct ? `Starting ${movie.title} on ${pick.name}…` : `Opening ${openingName(movie, body)} on the Family Room TV…`;
 }
 
 function sleep(ms) {
@@ -91,7 +106,7 @@ async function watchTv(answer, say, mine) {
   say(sentence(answer, "The TV didn't answer. Try the remote."), sticky);
 }
 
-// Play `movie` with `body` ({mode: "auto" | "stream" | "disc", service?}), telling `say(text, sticky)` how it goes: Opening...,
+// Play `movie` with `body` ({mode: "auto" | "stream" | "disc", service?}), telling `say(text, sticky)` how it goes: Opening... (Starting... for a direct play),
 // then the server's sentence on a failure, or what §5.3 settles (confirmed, "Sent to the TV." when the TV has never
 // reported, or the answer after watching it). A disc's messages are `sticky`: they carry the shelf line, so they stay
 // until dismissed. Resolves, when the server answers and not when the TV does, to the server's answer, or null on a
@@ -101,7 +116,7 @@ async function startPlay(movie, body, say) {
   inFlight = true;
   const mine = ++playRound;
   const asked = body.mode === "auto" ? movie.play?.auto : body.mode;
-  say(`Opening ${openingName(movie, body)} on the Family Room TV…`, asked === "disc");
+  say(openingLine(movie, body), asked === "disc");
   let answer;
   try {
     answer = await api(`/api/movies/${movie.id}/play`, { method: "POST", body });
