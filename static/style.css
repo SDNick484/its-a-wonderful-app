@@ -652,6 +652,25 @@ main {
   align-items: center;
   min-height: var(--tap);
 }
+/* The Netflix link field on a movie's page: the row is a .log-row; what is under it says where the id came from, or why a
+   link was refused */
+.netflix-hint,
+.netflix-error {
+  margin: 0 0 var(--s3);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+.netflix-hint {
+  color: var(--ink-2);
+}
+.netflix-error {
+  color: var(--amber-text);
+  font-weight: 700;
+}
+.netflix-hint:empty,
+.netflix-error:empty {
+  display: none;
+}
 .settings-hint {
   color: var(--ink-2);
   font-size: var(--fs-sm);
