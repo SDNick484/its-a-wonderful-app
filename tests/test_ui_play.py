@@ -385,3 +385,225 @@ def test_contrast_over_a_theme(browser, on, monkeypatch):          # noqa: F811
         bg = pixel(page, centre[0], centre[1])
         assert ratio(colors[sel], bg) >= 4.5, (sel, colors[sel], bg, round(ratio(colors[sel], bg), 2))
     assert errors == []
+
+
+# ------------------------------------------------------------------------------------------------ the main page (Task 5)
+def seed_paused(title, **kw):
+    """A movie, as `seed` makes it, that is paused partway: it sits in Continue Watching. Returns its id."""
+    movie_id = seed(title, **kw)
+    with app.app.app_context():
+        con = app.get_db()
+        viewing_id = app.viewings.watch_tonight(con, movie_id)
+        con.execute("UPDATE viewings SET status='paused', watched_seconds=2400 WHERE id=?", (viewing_id,))
+        con.commit()
+    return movie_id
+
+
+def draw(page):
+    """Press Surprise us and wait for the three picks."""
+    page.click("#surprise-btn")
+    page.wait_for_function("document.querySelectorAll('#surprise-picks .movie-card').length === 3")
+
+
+def toast_text(page):
+    return page.inner_text("#toast")
+
+
+def wait_toast(page, text, timeout=5000):
+    page.wait_for_function("(t) => document.getElementById('toast').textContent === t", arg=text, timeout=timeout)
+
+
+def continue_loads(page):
+    """A list that fills with every GET /api/continue the page makes from here on."""
+    loads = []
+    page.on("request", lambda r: loads.append(r.url) if r.method == "GET" and r.url.endswith("/api/continue") else None)
+    return loads
+
+
+def settle(page, loads, count):
+    """Wait for `count` loads of the row, then a little longer: a stray extra one shows up in `loads`."""
+    for _ in range(100):                                  # page.wait_for_timeout lets the request events in; time.sleep would not
+        if len(loads) >= count:
+            break
+        page.wait_for_timeout(50)
+    assert len(loads) >= count, "the row never reloaded"
+    page.wait_for_timeout(300)
+
+
+@pytest.mark.parametrize("viewport", VIEWPORTS)
+def test_continue_row_play(browser, on, viewport):          # noqa: F811
+    seed_paused("Elf", flatrate=["netflix"])
+    on.hook.delay = 0.3                                  # long enough to see the opening line
+    page, errors = open_page(browser, on, viewport)
+    page.wait_for_selector("#continue-row .continue-item")
+    assert page.inner_text("#continue-row .continue-status") != "Tonight"
+    button = page.locator("#continue-row .continue-play")
+    assert button.count() == 1 and button.inner_text() == "▶ Play"
+    assert button.get_attribute("aria-label") == "Play Elf on the TV"
+    page.click("#continue-row .continue-play")
+    wait_toast(page, "Opening Netflix on the Family Room TV…")
+    wait_for(lambda: len(on.hook.calls) == 1)
+    assert on.hook.calls == [{"event": "wonderful_play", "mode": "stream", "source": "Netflix", "title": "Elf"}]
+    page.wait_for_function("document.querySelector('#continue-row .continue-status').textContent === 'Tonight'")
+    wait_toast(page, "Sent to the TV.")
+    assert page.locator("#continue-actions").count() == 0         # the tap did not open the sheet
+    assert _side_scroll(page) <= 0 and errors == []
+    page.click("#continue-row .continue-item")                    # the poster still does
+    page.wait_for_selector("#continue-actions")
+    assert page.inner_text("#continue-actions .sheet-title") == "Elf"
+
+
+@pytest.mark.parametrize("viewport", VIEWPORTS)
+def test_surprise_pick_play_does_not_open_the_page(browser, on, viewport):          # noqa: F811
+    for title in ("Elf", "Home Alone", "Jingle All the Way"):
+        seed(title, flatrate=["netflix"])
+    page, errors = open_page(browser, on, viewport)
+    draw(page)
+    assert page.locator("#surprise-picks .pick-play").count() == 3
+    hash_before = page.evaluate("location.hash")
+    first = page.locator("#surprise-picks .pick-play").first
+    label = first.get_attribute("aria-label")
+    assert label.startswith("Play ") and label.endswith(" on the TV")
+    first.click()
+    wait_toast(page, "Sent to the TV.")
+    page.wait_for_timeout(300)
+    assert len(on.hook.calls) == 1 and on.hook.calls[0]["mode"] == "stream"
+    assert page.evaluate("location.hash") == hash_before and page.is_visible("#grid-view")
+    assert label == f"Play {on.hook.calls[0]['title']} on the TV"
+    assert _side_scroll(page) <= 0 and errors == []
+    page.click("#surprise-picks .movie-card")                     # the poster still opens the movie's page
+    page.wait_for_function("location.hash.startsWith('#/m/')")
+    page.wait_for_selector("#detail .detail-title")
+
+
+def test_no_play_button_when_nothing_applies(browser, on):          # noqa: F811
+    seed("Elf", rent=["netflix"])
+    seed("Prancer", rent=["netflix"])
+    seed("Home Alone", flatrate=["netflix"])
+    seed_paused("Arthur Christmas", rent=["disney_plus"])
+    seed_paused("The Santa Clause", flatrate=["disney_plus"])
+    page, errors = open_page(browser, on)
+    page.wait_for_selector("#continue-row .continue-item")
+    assert page.locator("#continue-row .continue-item").count() == 2
+    assert page.eval_on_selector_all("#continue-row .continue-play", "els => els.map(e => e.getAttribute('aria-label'))") == [
+        "Play The Santa Clause on the TV"]                        # the rent-only one has none
+    streamable = {"Home Alone", "The Santa Clause"}
+    for _ in range(30):                                       # five movies, three picks: until a streamable one is drawn
+        draw(page)
+        if streamable & set(page.eval_on_selector_all("#surprise-picks .card-title", "els => els.map(e => e.textContent)")):
+            break
+    cards = page.eval_on_selector_all("#surprise-picks .pick", """els => els.map(e => [e.querySelector('.card-title').textContent,
+        e.querySelectorAll('.pick-play').length])""")
+    assert any(n for _, n in cards) and any(not n for _, n in cards)       # both kinds are on screen
+    assert all(bool(n) == (title in streamable) for title, n in cards), cards
+    assert errors == []
+
+
+def test_no_play_buttons_when_off(browser, env):          # noqa: F811
+    seed_paused("Elf", flatrate=["netflix"])
+    seed("Home Alone", disc=True, flatrate=["netflix"])
+    seed("Prancer", flatrate=["netflix"])
+    page, errors = open_page(browser, env)                 # HA_PLAY_WEBHOOK_URL is empty
+    page.wait_for_selector("#continue-row .continue-item")
+    draw(page)
+    assert page.locator(".pick-play, .continue-play").count() == 0 and errors == []
+
+
+def test_grid_has_no_play_buttons(browser, on):          # noqa: F811
+    seed_paused("Elf", flatrate=["netflix"])
+    seed("Home Alone", disc=True, flatrate=["netflix"])
+    seed("Prancer", flatrate=["netflix"])
+    page, errors = open_page(browser, on)
+    page.wait_for_selector("#continue-row .continue-play")
+    draw(page)
+    assert page.locator("#continue-row .continue-play, #surprise-picks .pick-play").count() == 4     # the control: they are there
+    assert page.locator("#grid .movie-card").count() == 3
+    assert page.locator("#grid .pick-play, #grid .continue-play, #grid button").count() == 0 and errors == []
+
+
+def test_disc_toast_stays(browser, on):          # noqa: F811
+    for title in ("Elf", "Home Alone", "Prancer"):
+        seed(title, disc=True)
+    page, errors = open_page(browser, on)
+    draw(page)
+    page.click("#surprise-picks .pick-play")
+    wait_toast(page, f"Sent to the TV. {SHELF_LINE}: go get it!")
+    assert on.hook.calls[0]["mode"] == "disc" and on.hook.calls[0]["source"] == "AV Receiver"
+    page.wait_for_timeout(5000)                           # not the 4-second kind
+    assert page.evaluate("document.getElementById('toast').classList.contains('show')")
+    assert SHELF_LINE in toast_text(page)
+    page.click("#toast")
+    assert not page.evaluate("document.getElementById('toast').classList.contains('show')") and errors == []
+
+
+def test_a_failed_play_says_so_in_the_toast(browser, on):          # noqa: F811
+    seed_paused("Elf", flatrate=["netflix"])
+    on.hook.status = 500
+    page, errors = open_page(browser, on)
+    page.click("#continue-row .continue-play")
+    wait_toast(page, "Couldn't reach the TV. Elf is on for tonight; use the remote.")
+    page.wait_for_function("document.querySelector('#continue-row .continue-status').textContent === 'Tonight'")
+    assert errors == []
+
+
+def test_double_tap_sends_one_request(browser, on):          # noqa: F811
+    for title in ("Elf", "Home Alone", "Prancer"):
+        seed(title, flatrate=["netflix"])
+    seed_paused("Arthur Christmas", flatrate=["netflix"])
+    on.hook.delay = 0.5                                   # the first request is still in flight for the second tap
+    page, errors = open_page(browser, on)
+    draw(page)
+    page.evaluate("() => { const b = document.querySelector('#surprise-picks .pick-play'); b.click(); b.click(); }")
+    wait_toast(page, "Sent to the TV.")
+    page.wait_for_timeout(400)
+    assert len(on.hook.calls) == 1
+    on.hook.calls.clear()                                  # nor can a second button start another while one is pending
+    page.evaluate("() => { document.querySelector('#continue-row .continue-play').click();"
+                  " document.querySelector('#surprise-picks .pick-play').click(); }")
+    wait_toast(page, "Sent to the TV.")
+    page.wait_for_timeout(400)
+    assert len(on.hook.calls) == 1 and errors == []
+
+
+def test_second_visit_to_the_main_page(browser, on):          # noqa: F811
+    for title in ("Elf", "Home Alone", "Prancer"):
+        seed(title, flatrate=["netflix"])
+    seed_paused("Arthur Christmas", flatrate=["netflix"])
+    page, errors = open_page(browser, on)
+    loads = continue_loads(page)
+    page.wait_for_selector("#continue-row .continue-play")
+    draw(page)
+    page.click("#surprise-picks .movie-card")             # to a movie's page and back
+    page.wait_for_selector("#detail-where")
+    page.click("#back-link")
+    page.wait_for_selector("#grid-view", state="visible")
+    draw(page)
+    for sel, expected in (("#surprise-picks .pick-play", 1), ("#continue-row .continue-play", 2)):
+        before = len(loads)
+        page.click(sel)
+        wait_for(lambda: len(on.hook.calls) == expected)
+        settle(page, loads, before + 1)
+        assert len(on.hook.calls) == expected, sel         # one request for the tap, not two
+        assert len(loads) == before + 1, sel               # and the row reloaded once: a listener wired twice would reload twice
+    assert page.locator("#surprise-picks .movie-card").count() == 3 and errors == []
+
+
+@pytest.mark.parametrize("viewport", VIEWPORTS)
+def test_play_buttons_fit(browser, on, viewport):          # noqa: F811
+    for title in ("Elf", "Home Alone", "Prancer"):
+        seed_paused(title, flatrate=["netflix"])
+    seed("Arthur Christmas", flatrate=["netflix"])
+    page, errors = open_page(browser, on, viewport)
+    page.wait_for_selector("#continue-row .continue-play")
+    draw(page)
+    sizes = page.eval_on_selector_all(".pick-play, .continue-play", "els => els.map(e => { const r = e.getBoundingClientRect(); return [r.width, r.height]; })")
+    assert len(sizes) >= 4 and all(w >= 44 and h >= 44 for w, h in sizes), sizes
+    for sel in ("#surprise-picks .movie-card", "#continue-row .continue-item"):
+        lefts = page.eval_on_selector_all(sel, "els => els.map(e => Math.round(e.getBoundingClientRect().left))")
+        assert len(lefts) == 3 and len(set(lefts)) == 3, (sel, lefts)         # three columns remain
+    for sel in (".pick-play", ".continue-play"):
+        colors = page.evaluate("(s) => { const c = getComputedStyle(document.querySelector(s)); return [c.color, c.backgroundColor]; }", sel)
+        assert ratio(rgb_of(colors[0]), rgb_of(colors[1])) >= 4.5, (sel, colors)
+    inside = page.evaluate("""() => [...document.querySelectorAll('.pick-play')].every(b => {
+        const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; })""")
+    assert inside and _side_scroll(page) <= 0 and errors == []

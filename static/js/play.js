@@ -1,7 +1,7 @@
 // It's a Wonderful App: Play on the Family Room TV (design 2026-11-26, §5.3, §5.4). playHtml draws the movie page's
 // section; startPlay owns the tap: one request at a time, the messages, and the watch for the TV to say it got there.
-// Task 5 calls startPlay from the main page with its own `say` (a toast), so nothing here touches the movie's page.
-import { api, esc, tvIsOn } from "./core.js";
+// The main page (Task 5) calls startPlay with sayInToast, so nothing here touches the movie's page.
+import { api, esc, toast, tvIsOn } from "./core.js";
 
 const PLAY_POLL_MS = 3000;       // ask where the TV is this often...
 const PLAY_WAIT_MS = 90000;      // ...for this long, then say it didn't answer
@@ -123,4 +123,9 @@ async function startPlay(movie, body, say) {
   return answer;
 }
 
-export { playHtml, startPlay };
+// `say` for a play that has no page of its own to write on (the main page): a toast, which a disc's stays until tapped.
+function sayInToast(text, sticky) {
+  toast(text, sticky ? 0 : undefined);
+}
+
+export { playHtml, sayInToast, startPlay };

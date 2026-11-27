@@ -2,8 +2,10 @@
 // chips; Pick Again draws three new ones, skipping what was drawn since the filters last changed. The chips are
 // remembered on this device and every one starts off.
 import { api, esc, state, toast } from "./core.js";
+import { loadContinue } from "./continue.js";
 import { runtimeText } from "./detail.js";
 import { posterHtml, watchPosters } from "./grid.js";
+import { sayInToast, startPlay } from "./play.js";
 
 const STORAGE_KEY = "wonderful.surprise.filters";
 const CAPS = ["G", "PG", "PG-13"];
@@ -74,16 +76,28 @@ function onChip(id) {
 }
 
 // ================================================================= picks
+// A pick: the card (a link to the movie's page) and, when something can play the movie, a ▶ over the poster's corner. The
+// button is beside the link, not inside it, so a tap on it never navigates.
 function pickHtml(m) {
   const first = (m.where_to_watch || [])[0];
   const runtime = runtimeText(m.runtime_min);
   const label = m.year ? `${m.title} (${m.year})` : m.title;
-  return `<a class="movie-card" href="#/m/${m.id}" aria-label="${esc(label)}">`
+  const play = m.play?.auto
+    ? `<button type="button" class="btn pick-play" data-play-movie="${m.id}" aria-label="${esc(`Play ${m.title} on the TV`)}">▶</button>` : "";
+  return `<div class="pick"><a class="movie-card" href="#/m/${m.id}" aria-label="${esc(label)}">`
     + `<div class="poster-wrap">${posterHtml(m)}</div>`
     + `<div class="card-title">${esc(m.title)}</div>`
     + (runtime ? `<div class="card-year">${esc(runtime)}</div>` : "")
     + (first ? `<div class="card-where" data-kind="${esc(first.kind)}">${esc(first.label)}</div>` : "")
-    + `</a>`;
+    + `</a>${play}</div>`;
+}
+
+// ▶ on a pick: the TV starts it (mode "auto") and the answer shows as a toast; the Continue Watching row reloads either way.
+async function playPick(movieId) {
+  const m = state.movies.find(x => x.id === movieId);
+  if (!m) return;
+  await startPlay(m, { mode: "auto" }, sayInToast);
+  loadContinue();
 }
 
 function showPicks(ids, status, again = false) {
@@ -126,6 +140,10 @@ function wireSurprise() {
   document.getElementById("surprise-chips").addEventListener("click", e => {
     const chip = e.target.closest("[data-chip]");
     if (chip) onChip(chip.dataset.chip);
+  });
+  document.getElementById("surprise-picks").addEventListener("click", e => {
+    const play = e.target.closest("[data-play-movie]");
+    if (play) playPick(Number(play.dataset.playMovie));
   });
   document.getElementById("surprise-btn").addEventListener("click", () => draw(false));
   document.getElementById("surprise-again").addEventListener("click", () => draw(true));

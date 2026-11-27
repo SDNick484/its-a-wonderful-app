@@ -3,6 +3,7 @@
 // (never answered for you), and the rating sheet after a finish, with the viewing's people first.
 import { api, esc, toast } from "./core.js";
 import { loadMovies, posterHtml, watchPosters } from "./grid.js";
+import { sayInToast, startPlay } from "./play.js";
 import { openRatingSheet } from "./rating.js";
 
 let continueRows = [];          // the open viewings, tonight's first (GET /api/continue)
@@ -16,11 +17,15 @@ function continueStatus(v) {
   return v.progress || "Paused";
 }
 
+// The item (a button, as ever) and, when something can play the movie, a Play button beside it: a sibling, so a tap on it
+// never reaches the item's own click.
 function itemHtml(v) {
-  return `<button type="button" class="continue-item" data-viewing="${v.viewing_id}" aria-label="${esc(`${v.title}: ${continueStatus(v)}`)}">`
+  const play = v.play?.auto
+    ? `<button type="button" class="btn continue-play" data-play-viewing="${v.viewing_id}" aria-label="${esc(`Play ${v.title} on the TV`)}">▶ Play</button>` : "";
+  return `<div class="continue-cell"><button type="button" class="continue-item" data-viewing="${v.viewing_id}" aria-label="${esc(`${v.title}: ${continueStatus(v)}`)}">`
     + `<div class="poster-wrap">${posterHtml(v)}</div>`
     + `<span class="card-title">${esc(v.title)}</span>`
-    + `<span class="continue-status" data-status="${esc(v.status)}">${esc(continueStatus(v))}</span></button>`;
+    + `<span class="continue-status" data-status="${esc(v.status)}">${esc(continueStatus(v))}</span></button>${play}</div>`;
 }
 
 function renderContinue() {
@@ -38,6 +43,13 @@ async function loadContinue() {
     // keep the last row; the next load tries again
   }
   renderContinue();
+}
+
+// ▶ Play on an item: the movie goes on for tonight and the TV starts it (mode "auto"); the answer shows as a toast, and the
+// row reloads either way (a failed play still left the movie on for tonight).
+async function playFromRow(v) {
+  await startPlay({ id: v.movie_id, title: v.title, play: v.play }, { mode: "auto" }, sayInToast);
+  loadContinue();
 }
 
 // ================================================================= sheets
@@ -227,6 +239,12 @@ function wireContinue() {
   const row = document.getElementById("continue-row");
   watchPosters(row);
   row.addEventListener("click", e => {
+    const play = e.target.closest("[data-play-viewing]");
+    if (play) {
+      const v = continueRows.find(r => r.viewing_id === Number(play.dataset.playViewing));
+      if (v) playFromRow(v);
+      return;
+    }
     const item = e.target.closest("[data-viewing]");
     const v = item && continueRows.find(r => r.viewing_id === Number(item.dataset.viewing));
     if (v) openActions(v, item);
