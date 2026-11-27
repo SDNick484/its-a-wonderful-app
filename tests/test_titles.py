@@ -282,6 +282,22 @@ def test_a_removed_movie_takes_its_id_with_it(con, wikidata_fixtures):
     assert con.execute("SELECT COUNT(*) FROM service_titles").fetchone()[0] == 0
 
 
+def test_a_fandango_row_is_not_a_netflix_row(con, wikidata_fixtures):
+    """The Fandango at Home id (kept by the ownership check, manual 0, checked just now) shares the table: the Netflix
+    field, the lookup and the nightly list read the Netflix row alone."""
+    movie = add_movie(con, KLAUS_TMDB, "Klaus")
+    con.execute("INSERT INTO service_titles (movie_id, service, title_id, manual, checked_at) VALUES (?, 'fandango_at_home',"
+                " '15429', 0, ?)", (movie, app.now_iso()))
+    con.commit()
+    assert app.titles.get(con, movie) is None and app.titles.out(con, movie) == {"title_id": None, "manual": False}
+    assert app.titles.due(con) == [movie]                       # a fresh Fandango row does not make Netflix "just asked"
+    assert app.titles.lookup(con, movie) == KLAUS_ID
+    assert app.titles.due(con) == []
+    assert app.titles.get(con, movie, "fandango_at_home") == "15429"      # and the lookup left it alone
+    app.titles.set_manual(con, movie, "")                       # clearing a hand-set Netflix id never touches it either
+    assert app.titles.get(con, movie, "fandango_at_home") == "15429"
+
+
 # ------------------------------------------------------------------------------------------------ pasted links
 @pytest.mark.parametrize("raw", [
     "https://www.netflix.com/title/80183187",

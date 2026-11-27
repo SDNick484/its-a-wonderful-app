@@ -128,7 +128,15 @@ app:
 {"event": "wonderful_play", "mode": "stream", "source": "Netflix", "title": "Example Movie", "content_id": "80183187"}
 ```
 
-`content_id` is 1 to 12 digits and is sent for Netflix only; every other payload has no `content_id` at all. Two things to make in
+A digital copy we own (the movie shows "Our digital copy · Fandango at Home" on its page) starts the same way when
+Matinee has the copy's Fandango at Home link:
+
+```json
+{"event": "wonderful_play", "mode": "stream", "source": "Fandango at Home", "title": "Example Movie", "content_id": "15429"}
+```
+
+`content_id` is 1 to 12 digits and is sent for Netflix and for an owned Fandango at Home copy; every other payload has
+no `content_id` at all. Two things to make in
 Home Assistant, a script that does the work and an automation that receives the webhook. The entity names are
 placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `switch.watch_tv` and
 `switch.watch_a_bluray` (the remote's activities as switches).
@@ -211,6 +219,18 @@ placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `
                          payload:
                            id: youtube.leanback.v4
                            contentId: "v={{ content_id }}"
+                 - conditions:
+                     - condition: template
+                       value_template: "{{ content_id is not none and (content_id | default('')) | string is match('^[0-9]{1,12}$') and source == 'Fandango at Home' }}"
+                   sequence:
+                     - action: webostv.command
+                       target:
+                         entity_id: media_player.family_room_tv
+                       data:
+                         command: system.launcher/launch
+                         payload:
+                           id: vudu
+                           contentId: "{{ content_id }}"
                default:
                  - action: media_player.select_source
                    target:
@@ -240,16 +260,18 @@ placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `
    counts), and gives up if it never is. Because the wait checks the TV's state rather than watching for a change, a TV
    that comes on just before the wait starts is not missed. If the script had to start Watch TV it gives the TV 5 more
    seconds to finish starting, even when starting the activity only returned once the TV was up. Then it opens the
-   app: when `source` is `Netflix` and `content_id` is 1 to 12 digits, or `source` is `YouTube` and `content_id` is
-   1 to 64 letters, digits, `_` or `-`, it sends the TV's launcher a command that starts that title in the app
+   app: when `source` is `Netflix` or `Fandango at Home` and `content_id` is 1 to 12 digits, or `source` is `YouTube`
+   and `content_id` is 1 to 64 letters, digits, `_` or `-`, it sends the TV's launcher a command that starts that title in the app
    (`webostv.command`, `system.launcher/launch`, from the LG webOS TV integration); in every other case, including a
    call with no `content_id`, it selects the app with `media_player.select_source` as before. The script checks the
    id itself (a null counts as no id), so a caller other than the automation below cannot put anything else into the
    launch command. A disc only starts Watch a Bluray; that activity is trusted to put the TV on `AV Receiver`.
 
-   The two launch commands were tried on an LG webOS TV on 2026-11-26: Netflix started the title playing by itself,
-   with no profile picker, and YouTube went straight to a film owned through Movies Anywhere. Disney+ ignored the
-   same idea in five formats, so it isn't here. This app sends a `content_id` for Netflix only; the YouTube case is
+   The Netflix and YouTube launch commands were tried on an LG webOS TV on 2026-11-26: Netflix started the title
+   playing by itself, with no profile picker, and YouTube went straight to a film owned through Movies Anywhere.
+   Disney+ ignored the same idea in five formats, so it isn't here. The Fandango at Home one was tried on 2026-11-27:
+   the TV's Fandango at Home app (its launcher id is `vudu`) starts the film by itself when launched with its number.
+   This app sends a `content_id` for Netflix and for an owned Fandango at Home copy; the YouTube case is
    for other callers of the script (a Matinee automation starting an owned film, say). A different TV brand needs its
    own launch action in place of `webostv.command`; without one the `default` branch still opens the app.
 

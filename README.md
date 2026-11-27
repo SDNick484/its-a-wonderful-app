@@ -192,8 +192,12 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   in the **Netflix link** field) and Netflix is a service you subscribe to that TMDB lists it on: the line then reads
   "Starting Klaus on Netflix…", the request to Home Assistant carries the id as `content_id`, and the script in
   [docs/home-assistant.md](docs/home-assistant.md) launches the title, so the film plays without anyone reaching for
-  the remote. A Netflix movie with no id, a digital copy that ranks first, and every other service open the app as
-  before. API: `POST /api/movies/<id>/play` with `{"mode": "auto" | "stream" | "disc", "service"?}` →
+  the remote. **An owned digital copy starts the film itself on Fandango at Home** when Matinee has its Fandango link
+  (the id of the digital copy): "Starting Elf on Fandango at Home…", and the main page's ▶ does it too, since the digital
+  copy ranks first. The id arrives with the next ownership check (the nightly one, or when the movie's page is opened
+  and the last answer is over a day old); until then, and for a digital copy Matinee has no link for, the app just
+  opens. A Fandango at Home listing that TMDB reports but we don't own never starts a film. A Netflix movie with no id
+  and every other service open the app as before. API: `POST /api/movies/<id>/play` with `{"mode": "auto" | "stream" | "disc", "service"?}` →
   `{"ok", "mode", "source", "name", "label", "direct", "viewing", "tv", "sent_at", "confirmed"}` (`direct` is true when
   the request to Home Assistant carried a `content_id`; 409 when the movie can't do that, 502 when Home Assistant
   doesn't answer, 503 when Play is off), and each movie's `play` (`null` when off,

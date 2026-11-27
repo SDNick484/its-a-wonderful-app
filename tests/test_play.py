@@ -357,6 +357,104 @@ def test_a_direct_play_is_confirmed_like_any_other(client, ha_play):
     assert got["direct"] is True and got["confirmed"] is True and got["viewing"]["status"] == "watching"
 
 
+# ------------------------------------------------------------------------------------------------ an owned copy starts itself
+ELF_ID = "15429"
+
+
+def fandango_movie(title="Elf", fandango_id=ELF_ID, **tiers):
+    """A movie we own digitally (and, optionally, with a Fandango at Home id stored for it)."""
+    movie_id = movie(title, owned=(DIGITAL, None, 0, 1), **tiers)
+    if fandango_id is not None:
+        with app.app.app_context():
+            set_title_id(db(), movie_id, fandango_id, service=FANDANGO)
+    return movie_id
+
+
+def test_an_owned_copy_with_an_id_is_direct_and_auto_plays_it(client, ha_play):
+    movie_id = fandango_movie()
+    assert options(movie_id)["stream"] == [{"service": FANDANGO, "name": "Fandango at Home", "owned": True, "direct": True}]
+    got = play(client, movie_id)
+    assert ha_play.bodies == [{"event": "wonderful_play", "mode": "stream", "source": "Fandango at Home", "title": "Elf",
+                               "content_id": ELF_ID}]
+    assert (got["direct"], got["source"], got["name"]) == (True, "Fandango at Home", "Fandango at Home")
+    assert ELF_ID not in json.dumps(options(movie_id))   # the id itself is never in the options
+
+
+def test_an_owned_copy_without_an_id_is_not_direct(client, ha_play):
+    movie_id = fandango_movie(fandango_id=None)
+    assert options(movie_id)["stream"][0]["direct"] is False
+    got = play(client, movie_id)
+    assert ha_play.bodies == [{"event": "wonderful_play", "mode": "stream", "source": "Fandango at Home", "title": "Elf"}]
+    assert got["direct"] is False
+    with app.app.app_context():
+        set_title_id(db(), movie_id, None, service=FANDANGO)   # "Matinee has none" is a stored row with no id
+    assert play(client, movie_id)["direct"] is False and "content_id" not in ha_play.bodies[-1]
+
+
+@pytest.mark.parametrize("bad", ["15429; rm", "1234567890123", "15429/../x", "", " 15429", "15429\n", "１５４２９"])
+def test_a_stored_fandango_id_that_is_not_digits_is_ignored(client, ha_play, bad):
+    movie_id = fandango_movie(fandango_id=bad)   # straight into the table, past every check
+    assert options(movie_id)["stream"][0]["direct"] is False
+    got = play(client, movie_id)
+    assert got["direct"] is False and "content_id" not in ha_play.bodies[0]
+
+
+def test_a_twelve_digit_fandango_id_is_sent(client, ha_play):
+    movie_id = fandango_movie(fandango_id="123456789012")
+    assert play(client, movie_id)["direct"] is True and ha_play.bodies[0]["content_id"] == "123456789012"
+
+
+def test_fandango_on_tmdb_alone_is_never_direct(client, ha_play):
+    # listed by TMDB as flatrate and Subscribed, but we don't own it digitally: an id in the table is not used
+    movie_id = movie("Elf", flatrate=[FANDANGO])
+    with app.app.app_context():
+        set_title_id(db(), movie_id, ELF_ID, service=FANDANGO)
+    assert options(movie_id)["stream"] == [{"service": FANDANGO, "name": "Fandango at Home", "owned": False, "direct": False}]
+    got = play(client, movie_id, {"mode": "stream", "service": FANDANGO})
+    assert got["direct"] is False and "content_id" not in ha_play.bodies[0]
+
+
+def test_a_disc_alone_gets_no_fandango_option_from_ownership(client, ha_play):
+    movie_id = movie("Elf", owned=(BLURAY, SHELF, 1, 0))
+    with app.app.app_context():
+        set_title_id(db(), movie_id, ELF_ID, service=FANDANGO)   # a leftover id: still no option, and no direct play
+    assert options(movie_id)["stream"] == [] and options(movie_id)["auto"] == "disc"
+    got = play(client, movie_id)
+    assert got["mode"] == "disc" and got["direct"] is False and "content_id" not in ha_play.bodies[0]
+    assert play(client, movie_id, {"mode": "stream", "service": FANDANGO}, status=409)
+
+
+def test_each_service_sends_its_own_id(client, ha_play):
+    # owned digitally and on Netflix, each with its own id: auto starts Fandango, Netflix by name starts Netflix
+    movie_id = fandango_movie("Klaus", flatrate=["netflix"])
+    with app.app.app_context():
+        set_title_id(db(), movie_id, KLAUS_ID)
+    assert [(s["service"], s["direct"]) for s in options(movie_id)["stream"]] == [(FANDANGO, True), ("netflix", True)]
+    assert play(client, movie_id)["source"] == "Fandango at Home"
+    assert ha_play.bodies[0]["content_id"] == ELF_ID and KLAUS_ID not in json.dumps(ha_play.bodies[0])
+    got = play(client, movie_id, {"mode": "stream", "service": "netflix"})
+    assert got["source"] == "Netflix" and ha_play.bodies[1]["content_id"] == KLAUS_ID
+    assert ELF_ID not in json.dumps(ha_play.bodies[1])
+    got = play(client, movie_id, {"mode": "stream", "service": FANDANGO})
+    assert ha_play.bodies[2]["content_id"] == ELF_ID and got["direct"] is True
+
+
+def test_netflix_keeps_working_beside_a_fandango_id(client, ha_play):
+    movie_id = movie("Klaus", flatrate=["netflix"], title_id=KLAUS_ID)
+    with app.app.app_context():
+        set_title_id(db(), movie_id, ELF_ID, service=FANDANGO)   # not owned digitally: only a stray row
+    play(client, movie_id)
+    assert ha_play.bodies == [{"event": "wonderful_play", "mode": "stream", "source": "Netflix", "title": "Klaus",
+                               "content_id": KLAUS_ID}]
+
+
+def test_a_direct_fandango_play_is_confirmed_like_any_other(client, ha_play):
+    movie_id = fandango_movie()
+    tv_event("on", "Fandango at Home")
+    got = play(client, movie_id)
+    assert got["direct"] is True and got["confirmed"] is True and got["viewing"]["status"] == "watching"
+
+
 # ------------------------------------------------------------------------------------------------ the route
 def test_play_marks_tonight_and_posts_once(client, ha_play):
     movie_id = movie("Home Alone", flatrate=["disney_plus"])

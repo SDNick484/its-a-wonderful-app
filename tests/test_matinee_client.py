@@ -4,6 +4,7 @@ refresh, and the nightly ops/wonderful-refresh. Matinee answers from the FakeMat
 import importlib.machinery
 import importlib.util
 import io
+import json
 import urllib.error
 from pathlib import Path
 
@@ -13,6 +14,7 @@ import app
 from conftest import MATINEE_HOST, MATINEE_KEY
 
 ROOT = Path(__file__).resolve().parent.parent
+FIXTURES = ROOT / "tests" / "fixtures" / "matinee"
 ELF, KLAUS, WISHED = 10719, 508439, 777
 SHELF = "Blu-ray · Family Room › Media Cabinet › Shelf 2"
 
@@ -73,7 +75,7 @@ def asked(fake):
 # ------------------------------------------------------------------------------------------------ the client
 def test_owned_elf_reads_bluray_and_shelf(con, matinee_fixtures):
     assert api().owned(ELF) == {"title_id": 1, "summary": "Blu-ray", "location_path": "Family Room › Media Cabinet › Shelf 2",
-                                "has_physical": True, "has_digital": False}
+                                "has_physical": True, "has_digital": False, "fandango_id": None}
     movie_id = add_row(con, ELF, "Elf")
     app.movies.refresh_ownership(con, movie_id)
     s = sync(con, movie_id)
@@ -103,9 +105,60 @@ def test_a_copy_of_any_other_kind_counts_as_neither(matinee_fixtures, monkeypatc
     assert (found["has_physical"], found["has_digital"]) == (False, False)
 
 
+# ------------------------------------------------------------------------------------------------ the Fandango at Home id
+def test_a_digital_copy_with_a_fandango_id_gives_it(matinee_fixtures):
+    matinee_fixtures.owned_files[ELF] = "owned_digital_fandango.json"
+    found = api().owned(ELF)
+    assert found["fandango_id"] == "15429" and (found["has_physical"], found["has_digital"]) == (False, True)
+
+
+def test_a_disc_and_digital_title_takes_the_digital_copys_id(matinee_fixtures):
+    # the recorded disc carries an id of its own, which is ignored
+    matinee_fixtures.owned_files[ELF] = "owned_disc_and_digital_fandango.json"
+    assert api().owned(ELF)["fandango_id"] == "15429"
+
+
+@pytest.mark.parametrize("fixture", ["owned_elf.json", "owned_digital_only.json", "owned_disc_and_digital.json",
+                                     "owned_no_copies.json", "not_owned.json"])
+def test_a_copy_without_the_key_has_no_fandango_id(matinee_fixtures, fixture):
+    matinee_fixtures.owned_files[ELF] = fixture      # an older Matinee: no copy has the key, and that is no error
+    assert api().owned(ELF)["fandango_id"] is None
+
+
+@pytest.mark.parametrize("value", [None, "15429; rm", "1234567890123", 15429, "", " 15429", "15429\n", "１５４２９", True, ["15429"]])
+def test_a_fandango_id_that_is_not_one_to_twelve_digits_is_none(matinee_fixtures, monkeypatch, value):
+    body = json.loads((FIXTURES / "owned_digital_fandango.json").read_text())
+    body["copies"][0]["fandango_id"] = value
+    monkeypatch.setattr(app.matinee.Client, "_call", lambda self, method, path, b=None: body)
+    assert api().owned(ELF)["fandango_id"] is None
+
+
+def test_a_twelve_digit_fandango_id_is_kept(matinee_fixtures, monkeypatch):
+    body = json.loads((FIXTURES / "owned_digital_fandango.json").read_text())
+    body["copies"][0]["fandango_id"] = "123456789012"
+    monkeypatch.setattr(app.matinee.Client, "_call", lambda self, method, path, b=None: body)
+    assert api().owned(ELF)["fandango_id"] == "123456789012"
+
+
+def test_a_physical_copy_with_the_key_is_ignored(matinee_fixtures, monkeypatch):
+    body = json.loads((FIXTURES / "owned_disc_and_digital_fandango.json").read_text())
+    del body["copies"][1]                             # leave the disc, which carries "99999"
+    assert body["copies"][0]["kind"] == "physical" and body["copies"][0]["fandango_id"] == "99999"
+    monkeypatch.setattr(app.matinee.Client, "_call", lambda self, method, path, b=None: body)
+    assert api().owned(ELF)["fandango_id"] is None
+
+
+def test_the_first_digital_copy_with_a_valid_id_wins(matinee_fixtures, monkeypatch):
+    body = {"title_id": 1, "summary": "Digital HD", "copies": [
+        {"kind": "digital", "fandango_id": "bad id"}, {"kind": "digital", "fandango_id": "111"},
+        {"kind": "digital", "fandango_id": "222"}]}
+    monkeypatch.setattr(app.matinee.Client, "_call", lambda self, method, path, b=None: body)
+    assert api().owned(ELF)["fandango_id"] == "111"
+
+
 def test_not_owned_sets_null_title_id(con, matinee_fixtures):
     assert api().owned(KLAUS) == {"title_id": None, "summary": None, "location_path": None,
-                                  "has_physical": False, "has_digital": False}
+                                  "has_physical": False, "has_digital": False, "fandango_id": None}
     movie_id = add_row(con, KLAUS, "Klaus")
     app.movies.refresh_ownership(con, movie_id)
     s = sync(con, movie_id)

@@ -1,0 +1,42 @@
+{
+  "copies": [
+    {
+      "added_by": null,
+      "code_status": "none",
+      "created_at": "2026-11-19 07:26:02",
+      "edition": null,
+      "fandango_id": "99999",
+      "format": "Blu-ray",
+      "id": 3,
+      "kind": "physical",
+      "label": "Blu-ray",
+      "location_id": 3,
+      "location_path": "Family Room › Media Cabinet › Shelf 2",
+      "price_cents": null,
+      "purchased_on": null,
+      "service": null,
+      "title_id": 1,
+      "updated_at": "2026-11-19 07:26:02"
+    },
+    {
+      "added_by": null,
+      "code_status": "none",
+      "created_at": "2026-11-19 07:28:10",
+      "edition": null,
+      "fandango_id": "15429",
+      "format": "Digital 4K",
+      "id": 4,
+      "kind": "digital",
+      "label": "Digital 4K (Movies Anywhere)",
+      "location_id": null,
+      "location_path": null,
+      "price_cents": null,
+      "purchased_on": null,
+      "service": "Movies Anywhere",
+      "title_id": 1,
+      "updated_at": "2026-11-19 07:28:10"
+    }
+  ],
+  "summary": "Blu-ray · Digital 4K (Movies Anywhere)",
+  "title_id": 1
+}

@@ -78,3 +78,79 @@ def test_same_answer_before_and_after_the_check(con, matinee_fixtures):
     app.movies.check_ownership(con, movie)
     assert con.execute("SELECT has_physical FROM matinee_sync WHERE movie_id=?", (movie,)).fetchone()[0] == 1
     assert app.movies.copy_kinds(con, movie) == (True, True)
+
+
+# ------------------------------------------------------------------------------------------------ the Fandango at Home id
+FANDANGO = "fandango_at_home"
+
+
+def stored(con, movie_id, service=FANDANGO):
+    """The service_titles row for the movie and service, or None."""
+    return con.execute("SELECT * FROM service_titles WHERE movie_id=? AND service=?", (movie_id, service)).fetchone()
+
+
+def test_the_fandango_id_is_the_same_key_the_play_rule_uses():
+    assert app.movies.FANDANGO == app.ha.FANDANGO == FANDANGO
+
+
+def test_check_ownership_stores_the_fandango_id(con, matinee_fixtures):
+    movie = add_movie(con)
+    matinee_fixtures.owned_files[ELF] = "owned_digital_fandango.json"
+    app.movies.check_ownership(con, movie)
+    row = stored(con, movie)
+    assert (row["title_id"], row["manual"]) == ("15429", 0) and row["checked_at"]
+    assert app.titles.get(con, movie, FANDANGO) == "15429"
+
+
+def test_a_later_check_that_reports_none_clears_it(con, matinee_fixtures):
+    movie = add_movie(con)
+    matinee_fixtures.owned_files[ELF] = "owned_digital_fandango.json"
+    app.movies.check_ownership(con, movie)
+    matinee_fixtures.owned_files[ELF] = "owned_digital_only.json"      # still owned digitally, no id any more
+    app.movies.check_ownership(con, movie)
+    assert app.titles.get(con, movie, FANDANGO) is None
+    matinee_fixtures.owned_files[ELF] = "owned_digital_fandango.json"
+    app.movies.check_ownership(con, movie)
+    assert app.titles.get(con, movie, FANDANGO) == "15429"
+    matinee_fixtures.owned_files[ELF] = "not_owned.json"               # and no longer owned at all
+    app.movies.check_ownership(con, movie)
+    assert app.titles.get(con, movie, FANDANGO) is None
+
+
+def test_a_disc_alone_stores_no_fandango_id(con, matinee_fixtures):
+    movie = add_movie(con)
+    app.movies.check_ownership(con, movie)                              # owned_elf.json: a Blu-ray
+    assert app.titles.get(con, movie, FANDANGO) is None
+
+
+@pytest.mark.parametrize("error", [None, 502, 401])
+def test_matinee_down_keeps_the_fandango_id(con, matinee_down, error):
+    movie = add_movie(con)
+    con.execute("INSERT INTO service_titles (movie_id, service, title_id, manual, checked_at) VALUES (?, ?, '15429', 0,"
+                " '2026-11-01T00:00:00Z')", (movie, FANDANGO))
+    con.commit()
+    before = dict(stored(con, movie))
+    if error:
+        matinee_down.error = error
+    app.movies.refresh_ownership(con, movie)
+    assert matinee_down.calls == 1                                       # it was asked, and could not answer
+    assert dict(stored(con, movie)) == before
+
+
+def test_a_tv_entry_is_never_asked_and_gets_no_fandango_row(con, matinee_fixtures):
+    cur = con.execute("INSERT INTO movies (tmdb_id, tmdb_type, title) VALUES (?, 'tv', 'A special')", (ELF,))
+    con.commit()
+    matinee_fixtures.owned_files[ELF] = "owned_digital_fandango.json"
+    app.movies.check_ownership(con, cur.lastrowid)
+    assert matinee_fixtures.calls == [] and stored(con, cur.lastrowid) is None
+
+
+def test_the_netflix_row_is_left_alone(con, matinee_fixtures):
+    movie = add_movie(con)
+    con.execute("INSERT INTO service_titles (movie_id, service, title_id, manual, checked_at) VALUES (?, 'netflix', '80183187', 1, ?)",
+                (movie, app.now_iso()))
+    con.commit()
+    matinee_fixtures.owned_files[ELF] = "owned_digital_fandango.json"
+    app.movies.check_ownership(con, movie)
+    assert (stored(con, movie, "netflix")["title_id"], stored(con, movie, "netflix")["manual"]) == ("80183187", 1)
+    assert app.titles.get(con, movie) == "80183187" and app.titles.get(con, movie, FANDANGO) == "15429"

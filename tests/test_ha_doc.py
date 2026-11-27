@@ -96,12 +96,15 @@ def test_the_script_takes_an_optional_content_id_and_falls_back_to_selecting_the
     assert "required" not in field and "text:" in field
     stream = script.split("webostv.command")[0]
     assert stream.count("required: true") == 2, "mode and source stay required; content_id is optional"
-    # the Netflix and YouTube launches are the two conditions of one choose, and select_source is its default
+    # the Netflix, YouTube and Fandango at Home launches are the three conditions of one choose (in that order), and
+    # select_source is its default
     after_wait = script.split("seconds: 5")[1]
     assert after_wait.index("- choose:") < after_wait.index("webostv.command") < after_wait.index("default:") \
         < after_wait.index("media_player.select_source") < after_wait.index("switch.watch_a_bluray")
-    assert after_wait.count("webostv.command") == 2 and after_wait.count("media_player.select_source") == 1
+    assert after_wait.count("webostv.command") == 3 and after_wait.count("media_player.select_source") == 1
     assert "source == 'Netflix'" in after_wait and "source == 'YouTube'" in after_wait
+    assert after_wait.index("source == 'Netflix'") < after_wait.index("source == 'YouTube'") \
+        < after_wait.index("source == 'Fandango at Home'") < after_wait.index("default:")
     # the script checks the id itself: a caller that does not go through the automation cannot put anything else
     # into the launch command, it falls through to select_source
     netflix_cond = after_wait.split("source == 'Netflix'")[0].rsplit("value_template:", 1)[1]
@@ -111,6 +114,12 @@ def test_the_script_takes_an_optional_content_id_and_falls_back_to_selecting_the
     # a YAML null would stringify to "None", which the YouTube pattern accepts, so null is excluded explicitly
     assert "content_id is not none" in netflix_cond and "content_id is not none" in youtube_cond
     assert "id: netflix" in after_wait and "id: youtube.leanback.v4" in after_wait
+    # Fandango at Home (the Vudu app on the TV) takes the same digits as Netflix, in its own launch command
+    fandango_cond = after_wait.split("source == 'Fandango at Home'")[0].rsplit("value_template:", 1)[1]
+    assert "string is match('^[0-9]{1,12}$')" in fandango_cond and "content_id is not none" in fandango_cond, fandango_cond
+    fandango = after_wait.split("source == 'Fandango at Home'")[1].split("default:")[0]
+    assert "command: system.launcher/launch" in fandango and "id: vudu" in fandango
+    assert 'contentId: "{{ content_id }}"' in fandango
     assert "entity_id: media_player.family_room_tv" in after_wait
 
 
@@ -130,3 +139,10 @@ def test_the_doc_shows_the_payload_with_and_without_a_content_id():
     text = doc()
     assert '"title": "Example Movie", "content_id": "80183187"}' in text
     assert '"source": "Disney+", "title": "Example Movie"}' in text
+
+
+def test_the_doc_says_who_sends_a_content_id():
+    text = doc()
+    assert "for Netflix and for an owned Fandango at Home copy" in text
+    assert "is sent for Netflix only" not in text and "This app sends a `content_id` for Netflix only" not in text
+    assert '"source": "Fandango at Home", "title": "Example Movie", "content_id": "15429"}' in text

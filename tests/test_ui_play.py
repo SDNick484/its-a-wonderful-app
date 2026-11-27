@@ -781,3 +781,37 @@ def test_netflix_field_second_visit(browser, on):          # noqa: F811
     page.wait_for_function("document.getElementById('detail-netflix-hint').textContent === 'Set by hand'")
     page.wait_for_timeout(300)
     assert len(saved) == 2 and saved[0] != saved[1] and errors == []
+
+
+ELF_ID = "15429"
+
+
+def test_an_owned_copy_with_a_fandango_id_says_starting(browser, on):          # noqa: F811
+    movie_id = seed("Elf", digital=True)
+    with app.app.app_context():
+        con = app.get_db()
+        con.execute("INSERT INTO service_titles (movie_id, service, title_id, manual, checked_at) VALUES (?, 'fandango_at_home', ?, 0, ?)",
+                    (movie_id, ELF_ID, app.now_iso()))
+        con.commit()
+    on.hook.delay = 0.4                                  # long enough to read the opening line
+    page, errors = open_page(browser, on, wait=5000)
+    open_movie(page, "Elf")
+    assert page.inner_text("#detail-play-box .play-line") == "Our digital copy · Fandango at Home"
+    page.click("[data-play=stream]")
+    wait_status(page, "Starting Elf on Fandango at Home…")
+    wait_for(lambda: len(on.hook.calls) == 1)
+    assert on.hook.calls == [{"event": "wonderful_play", "mode": "stream", "source": "Fandango at Home", "title": "Elf",
+                              "content_id": ELF_ID}]
+    wait_status(page, "Sent to the TV.")
+    assert errors == []
+
+
+def test_an_owned_copy_without_an_id_still_says_opening(browser, on):          # noqa: F811
+    seed("Elf", digital=True)
+    on.hook.delay = 0.4
+    page, errors = open_page(browser, on, wait=5000)
+    open_movie(page, "Elf")
+    page.click("[data-play=stream]")
+    wait_status(page, "Opening Fandango at Home on the Family Room TV…")
+    wait_for(lambda: len(on.hook.calls) == 1)
+    assert "content_id" not in on.hook.calls[0] and errors == []
