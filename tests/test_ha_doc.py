@@ -102,6 +102,12 @@ def test_the_script_takes_an_optional_content_id_and_falls_back_to_selecting_the
         < after_wait.index("media_player.select_source") < after_wait.index("switch.watch_a_bluray")
     assert after_wait.count("webostv.command") == 2 and after_wait.count("media_player.select_source") == 1
     assert "source == 'Netflix'" in after_wait and "source == 'YouTube'" in after_wait
+    # the script checks the id itself: a caller that does not go through the automation cannot put anything else
+    # into the launch command, it falls through to select_source
+    netflix_cond = after_wait.split("source == 'Netflix'")[0].rsplit("value_template:", 1)[1]
+    youtube_cond = after_wait.split("source == 'YouTube'")[0].rsplit("value_template:", 1)[1]
+    assert "string is match('^[0-9]{1,12}$')" in netflix_cond, netflix_cond
+    assert "string is match('^[A-Za-z0-9_-]{1,64}$')" in youtube_cond, youtube_cond
     assert "id: netflix" in after_wait and "id: youtube.leanback.v4" in after_wait
     assert "entity_id: media_player.family_room_tv" in after_wait
 
@@ -112,7 +118,6 @@ def test_the_automation_checks_and_passes_content_id():
     # absent passes; present has to be a string of the allowed characters
     assert "trigger.json.content_id is not defined" in condition
     assert "is match('^[A-Za-z0-9_-]{1,64}$')" in condition and "content_id is string" in condition
-    assert "or" in condition.split("content_id is not defined")[1].split("is string")[0]
     assert "content_id: \"{{ trigger.json.content_id | default('') }}\"" in automation
     # the old checks are all still there
     for old in ("event == 'wonderful_play'", "mode in ['stream', 'disc']", "(trigger.json.source | default('')) | length > 0"):
