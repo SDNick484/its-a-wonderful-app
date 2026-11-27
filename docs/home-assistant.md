@@ -124,9 +124,11 @@ placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `
 `switch.watch_a_bluray` (the remote's activities as switches).
 
 1. **The script** (**Settings → Automations & Scenes → Scripts → Add script → Edit in YAML**). Save it as "Play on the
-   Family Room TV" and check under **Settings → Devices & services → Entities** that its entity id is
-   `script.wonderful_play_on_tv` (rename it if not). `mode: restart` means a second pick replaces the first instead of
-   queueing behind a 60 second wait.
+   Family Room TV", then open **Settings → Devices & services → Entities**, find the script and set its entity id to
+   `script.wonderful_play_on_tv`. Home Assistant derives the entity id from the alias when the script is first saved, so
+   an alias that slugifies to that name gives the same result, but a script saved under any other alias will not match,
+   and the automation below would call a script that doesn't exist. `mode: restart` means a second pick replaces the
+   first instead of queueing behind a 60 second wait.
 
    ```yaml
    alias: "Play on the Family Room TV"
@@ -151,29 +153,23 @@ placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `
              - condition: template
                value_template: "{{ mode == 'stream' }}"
            sequence:
+             - variables:
+                 activity_started: "{{ not is_state('switch.watch_tv', 'on') }}"
              - if:
-                 - condition: not
-                   conditions:
-                     - condition: state
-                       entity_id: switch.watch_tv
-                       state: "on"
+                 - condition: template
+                   value_template: "{{ activity_started }}"
                then:
                  - action: switch.turn_on
                    target:
                      entity_id: switch.watch_tv
+             - wait_template: >-
+                 {{ states('media_player.family_room_tv') not in ['off', 'unavailable', 'unknown'] }}
+               timeout: 60
+               continue_on_timeout: false
              - if:
-                 - condition: not
-                   conditions:
-                     - condition: state
-                       entity_id: media_player.family_room_tv
-                       state: "on"
+                 - condition: template
+                   value_template: "{{ activity_started }}"
                then:
-                 - wait_for_trigger:
-                     - trigger: state
-                       entity_id: media_player.family_room_tv
-                       to: "on"
-                   timeout: 60
-                   continue_on_timeout: false
                  - delay:
                      seconds: 5
              - action: media_player.select_source
@@ -197,11 +193,14 @@ placeholders: `media_player.family_room_tv` (the TV, as in "Set it up" above), `
                      entity_id: switch.watch_a_bluray
    ```
 
-   For a stream, `switch.watch_tv` is turned on unless it is already on, even when the TV is already on under another
-   activity (Watch a Bluray, say) or was turned on some other way: the app then opens under Watch TV and the physical
-   remote drives it. Then, if the TV isn't on yet, the script waits up to 60 seconds for it (and gives up if it never
-   comes on), gives it 5 more seconds to finish starting, and selects the app. A disc only starts Watch a Bluray; that
-   activity is trusted to put the TV on `AV Receiver`.
+   For a stream, the script first notes whether `switch.watch_tv` was off, and turns it on if so. It does this even
+   when the TV is already on under another activity (Watch a Bluray, say) or was turned on some other way: the app then
+   opens under Watch TV and the physical remote drives it. Then it waits up to 60 seconds for the TV to be on, meaning
+   any state other than `off`, `unavailable` or `unknown` (a TV that reports `idle`, `playing`, `paused` or `buffering`
+   counts), and gives up if it never is. Because the wait checks the TV's state rather than watching for a change, a TV
+   that comes on just before the wait starts is not missed. If the script had to start Watch TV it gives the TV 5 more
+   seconds to finish starting, even when starting the activity only returned once the TV was up, and then selects the
+   app. A disc only starts Watch a Bluray; that activity is trusted to put the TV on `AV Receiver`.
 
 2. **The automation** (**Create → Edit in YAML**). It checks the payload and starts the script with `script.turn_on`,
    which returns at once: calling the script as an action would hold the webhook's answer for the script's whole
@@ -259,7 +258,8 @@ curl -s -i -X POST 'http://ha.example.com:8123/api/webhook/<a long random id>' \
 ```
 
 Home Assistant answers an empty `200` and the TV comes on in Watch TV and opens the app. A `200` doesn't prove the
-webhook id is right: Home Assistant also answers `200` to an id it doesn't know and does nothing, which the app
-then reports as "The TV didn't answer". So check the first play in **Settings → Automations → (the automation) →
+webhook id is right: Home Assistant also answers `200` to an id it doesn't know and does nothing. The app then
+reports "The TV didn't answer" once the TV events automation (above) is set up and has reported the TV's state, and
+only "Sent to the TV." before that, since it has no way to tell. So check the first play in **Settings → Automations → (the automation) →
 Traces**: a trace for it means the id matched; if there is none, fix the id in the automation or in
 `HA_PLAY_WEBHOOK_URL`. The script's own **Traces** show which branch ran and whether the 60 second wait timed out.

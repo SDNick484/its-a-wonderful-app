@@ -425,3 +425,55 @@ def test_the_second_pick_sets_the_first_aside(client, ha_play):
     play(client, second)
     assert tonight(client) == [(second, "tonight")]
     assert [b["title"] for b in ha_play.bodies] == ["Home Alone", "Klaus"]
+
+
+# ------------------------------------------------------------------------------------------------ a pick made during the post
+def _other_pick_during_the_post(monkeypatch, other_movie_id):
+    """The webhook's urlopen makes another movie tonight, on its own connection, while the first play waits on Home
+    Assistant (a second phone tapping Watch tonight or Play in that window)."""
+    monkeypatch.setattr(app, "HA_PLAY_WEBHOOK_URL", URL)
+
+    def urlopen(req, timeout=None):
+        other = app.connect()
+        try:
+            app.viewings.watch_tonight(other, other_movie_id)
+        finally:
+            other.close()
+        return _Ok()
+    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+
+
+def _live():
+    with app.app.app_context():
+        return [tuple(r) for r in db().execute("SELECT movie_id, status FROM viewings WHERE status IN ('tonight', 'watching')")]
+
+
+@pytest.mark.parametrize("tv_there", [False, True])
+def test_a_viewing_deleted_during_the_post_is_not_an_error(client, monkeypatch, tv_there):
+    first = movie("Home Alone", flatrate=["disney_plus"])
+    second = movie("Klaus", flatrate=["netflix"])
+    if tv_there:
+        tv_event("on", "Disney+")
+    _other_pick_during_the_post(monkeypatch, second)
+    got = play(client, first)   # Home Assistant was told to play, so the answer is still ok
+    assert got["ok"] is True and got["confirmed"] is False and got["viewing"] is None
+    assert _live() == [(second, "tonight")]
+    with app.app.app_context():
+        assert db().execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 0
+
+
+def test_a_viewing_paused_during_the_post_opens_no_session(client, monkeypatch):
+    first = movie("Home Alone", flatrate=["disney_plus"])
+    second = movie("Klaus", flatrate=["netflix"])
+    with app.app.app_context():
+        con = db()
+        viewing_id = app.viewings.watch_tonight(con, first)
+        con.execute("UPDATE viewings SET watched_seconds=600, status='paused' WHERE id=?", (viewing_id,))
+        con.commit()
+    tv_event("on", "Disney+")
+    _other_pick_during_the_post(monkeypatch, second)
+    got = play(client, first)
+    assert got["ok"] is True and got["confirmed"] is False
+    assert got["viewing"]["viewing_id"] == viewing_id and got["viewing"]["status"] == "paused"
+    assert _live() == [(second, "tonight")]
+    assert sessions(viewing_id) == []
