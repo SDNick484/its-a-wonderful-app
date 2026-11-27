@@ -10,7 +10,7 @@ from flask import g, has_app_context
 import providers
 from settings import DATA_DIR, DB_PATH, POSTER_DIR, ART_DIR
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);   -- schema version, settings that live in the DB
@@ -103,6 +103,15 @@ CREATE TABLE IF NOT EXISTS matinee_sync (            -- what we last told / hear
   has_digital INTEGER                  -- v2: the same for a digital copy
 );
 
+CREATE TABLE IF NOT EXISTS service_titles (         -- v3: a streaming service's own id for a movie (Netflix: the title id)
+  movie_id INTEGER NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+  service TEXT NOT NULL,               -- a services.key, today only 'netflix'
+  title_id TEXT,                       -- 1 to 12 digits; NULL = the lookup found none
+  manual INTEGER NOT NULL DEFAULT 0,   -- 1 = somebody pasted it: the lookup never changes it
+  checked_at TEXT,                     -- when the lookup last asked (UTC)
+  PRIMARY KEY (movie_id, service)
+);
+
 CREATE TABLE IF NOT EXISTS ai_cache (q_norm TEXT PRIMARY KEY, list_hash TEXT NOT NULL, result TEXT NOT NULL,
                                      created_at TEXT);
 """
@@ -138,7 +147,8 @@ def migrate(con):
     v1 is the first version, so it only creates what is missing; later versions add their steps below (each checks
     PRAGMA table_info first, so a step is a no-op the second time). The streaming services (data/services.json) are
     seeded here, so a service added to the file appears on the next start.
-    v2: matinee_sync.has_physical and has_digital, NULL on an old row until its next ownership check."""
+    v2: matinee_sync.has_physical and has_digital, NULL on an old row until its next ownership check.
+    v3: the service_titles table, which SCHEMA creates (CREATE TABLE IF NOT EXISTS), so v1 and v2 databases gain it here."""
     con.executescript(SCHEMA)
     have = {r[1] for r in con.execute("PRAGMA table_info(matinee_sync)")}
     for column in ("has_physical", "has_digital"):

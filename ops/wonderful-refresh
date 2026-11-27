@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Nightly refresh (spec §7.2, §8.1, §8.3): ask TMDB again where each movie streams when its cache is over 7 days old,
 ask Matinee again whether each movie is owned (and where it sits) when the last good answer is over a day old or
-missing, and send Matinee the watches of finished movies it couldn't take at the time.
+missing, send Matinee the watches of finished movies it couldn't take at the time, and ask Wikidata for the Netflix
+title id of each movie on Netflix that has none checked in the last 30 days (and none set by hand).
 
-  ops/wonderful-refresh           run all three; prints one line per problem and a summary (the installer's cron wrapper
+  ops/wonderful-refresh           run all four; prints one line per problem and a summary (the installer's cron wrapper
                                   appends it to /var/log/ops.log); exit 1 if anything could not be refreshed
-  ops/wonderful-refresh --dry-run say what would be asked: no TMDB or Matinee call, no write
+  ops/wonderful-refresh --dry-run say what would be asked: no TMDB, Matinee or Wikidata call, no write
 
 A failure never stops the app, and nothing is lost: the old answer stays and tomorrow's run tries again. When TMDB has
-no token, or Matinee has no key or does not answer (or refuses the key), that part stops at once instead of timing out
-once per movie. Run as root on the host (it reads /etc/conf.d/wonderful); the database it writes is handed back to the
+no token, or Matinee has no key or does not answer (or refuses the key), or Wikidata does not answer, that part stops
+at once instead of timing out once per movie. Run as root on the host (it reads /etc/conf.d/wonderful); the database it writes is handed back to the
 service user who owns the data folder. Route-free apart from `app` (the Flask app's module), which it uses for the
 database and the clients."""
 import argparse, datetime as dt, os, sys
@@ -90,6 +91,27 @@ def retry_watches(con, *, dry_run=False, say=say):
     return sent, failed, left
 
 
+def refresh_titles(con, *, dry_run=False, say=say):
+    """The Netflix title id from Wikidata for every movie on Netflix that is due (titles.due: never asked or asked over
+    30 days ago, not set by hand). Returns (looked_up, failed, left): the first failure stops the run (Wikidata is down,
+    so the rest would only wait out the timeout) and the movies after it are `left` for tomorrow."""
+    due = app.titles.due(con)
+    looked_up = 0
+    for n, movie_id in enumerate(due):
+        title = app.movies.get_row(con, movie_id)["title"]
+        if dry_run:
+            say(f"would ask Wikidata for the Netflix id of {title}")
+            looked_up += 1
+            continue
+        try:
+            app.titles.lookup(con, movie_id)
+            looked_up += 1
+        except app.wikidata.WikidataError as err:
+            say(f"Netflix id of {title}: {err.message} Stopping; {len(due) - n - 1} more left for tomorrow.")
+            return looked_up, 1, len(due) - n - 1
+    return looked_up, 0, 0
+
+
 def hand_back(data_dir):
     """Run as root, a database file created here would belong to root: give the data folder's files to its owner."""
     if os.geteuid() != 0:
@@ -101,19 +123,22 @@ def hand_back(data_dir):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Nightly refresh of watch providers (TMDB), ownership (Matinee) and owed watches.")
-    ap.add_argument("--dry-run", action="store_true", help="say what would be asked; no TMDB or Matinee call, no write")
+    ap = argparse.ArgumentParser(description="Nightly refresh of watch providers (TMDB), ownership (Matinee), owed watches"
+                                             " and Netflix title ids (Wikidata).")
+    ap.add_argument("--dry-run", action="store_true", help="say what would be asked; no TMDB, Matinee or Wikidata call, no write")
     args = ap.parse_args(argv)
     with app.app.app_context():
         con = app.get_db()
         p_done, p_failed = refresh_providers(con, dry_run=args.dry_run)
         o_done, o_failed, o_skipped = refresh_ownership(con, dry_run=args.dry_run)
         w_done, w_failed, w_left = retry_watches(con, dry_run=args.dry_run)
+        t_done, t_failed, t_left = refresh_titles(con, dry_run=args.dry_run)
     hand_back(app.DATA_DIR)
     say(f"{'would refresh' if args.dry_run else 'refreshed'} providers for {p_done} ({p_failed} failed); "
         f"ownership checked for {o_done} ({o_failed} failed, {o_skipped} left for tomorrow); "
-        f"{'would send' if args.dry_run else 'sent'} {w_done} watch(es) to Matinee ({w_failed} failed, {w_left} left)")
-    return 1 if p_failed or o_failed or w_failed else 0
+        f"{'would send' if args.dry_run else 'sent'} {w_done} watch(es) to Matinee ({w_failed} failed, {w_left} left); "
+        f"Netflix ids {'would be looked up' if args.dry_run else 'looked up'} for {t_done} ({t_failed} failed, {t_left} left for tomorrow)")
+    return 1 if p_failed or o_failed or w_failed or t_failed else 0
 
 
 if __name__ == "__main__":

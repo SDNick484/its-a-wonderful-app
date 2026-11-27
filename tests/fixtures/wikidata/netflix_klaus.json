@@ -1,0 +1,13 @@
+{
+  "head" : {
+    "vars" : [ "netflix" ]
+  },
+  "results" : {
+    "bindings" : [ {
+      "netflix" : {
+        "type" : "literal",
+        "value" : "80183187"
+      }
+    } ]
+  }
+}

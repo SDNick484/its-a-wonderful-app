@@ -91,10 +91,12 @@ def refresh_metadata(con, movie_id):
 def update_movie(con, movie_id, data):
     """PUT /api/movies/<id>: `parent_note` (text, or null/blank to clear) and/or `certification` (one of
     CERTIFICATIONS; setting it stops refreshes changing it back; null or blank lifts the override, and the next
-    refresh brings TMDB's value back). 400 for anything else."""
+    refresh brings TMDB's value back). `netflix_link` is accepted too but belongs to titles.py, which the route
+    calls (this module can't import it: titles imports providers, which imports this); a body with only that key
+    changes nothing here. 400 for anything else."""
     get_row(con, movie_id)
-    if not isinstance(data, dict) or not ({"parent_note", "certification"} & set(data)):
-        abort(make_err(400, "Send parent_note and/or certification."))
+    if not isinstance(data, dict) or not ({"parent_note", "certification", "netflix_link"} & set(data)):
+        abort(make_err(400, "Send parent_note, certification and/or netflix_link."))
     sets, args = [], []
     if "parent_note" in data:
         note = data["parent_note"]
@@ -115,8 +117,9 @@ def update_movie(con, movie_id, data):
             sets += ["certification=?", "certification_override=1"]; args.append(cert)
         else:
             sets.append("certification_override=0")
-    con.execute(f"UPDATE movies SET {', '.join(sets)} WHERE id=?", (*args, movie_id))
-    con.commit()
+    if sets:
+        con.execute(f"UPDATE movies SET {', '.join(sets)} WHERE id=?", (*args, movie_id))
+        con.commit()
 
 
 def remove_movie(con, movie_id):

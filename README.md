@@ -12,8 +12,8 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
 ## What works today
 
 - `GET /healthz` → `{"status": "ok"}` with no sign-in, for a monitor; it says nothing else.
-- The app skeleton: the page, `GET /api/health` → `{"ok": true, "schema": "2"}`, and the whole database
-  schema (v2).
+- The app skeleton: the page, `GET /api/health` → `{"ok": true, "schema": "3"}`, and the whole database
+  schema (v3).
 - **The list.** The **+** button opens a sheet: search TMDB by title, tap **Add to our list**, and the grid gains
   the poster (3 columns on every phone). A movie or a TV-only special adds the same way; one already on the list
   says "On our list". Tap a poster for the detail view: backdrop, overview, runtime, certification (US, `NR` when
@@ -52,6 +52,19 @@ and the build plan is [`docs/superpowers/plans/2026-11-18-its-a-wonderful-app.md
   The data is TMDB's US watch providers (JustWatch), saved when a movie is added and refreshed when older than 7
   days or with **Check again** on the detail view. A provider the app has never heard of shows under its own name.
   A title with no US providers reads "Rent or buy". The seed script also fetches them.
+- **The Netflix link.** For a movie TMDB lists on Netflix, the app keeps its Netflix title id, the number in
+  `netflix.com/title/80183187`; it is what lets **Stream it** start that exact movie on Netflix instead of only opening
+  the app (the TV side comes with the play change that follows). The app finds it by itself: when a movie is added,
+  and in the nightly refresh when it has none yet or the last look is over 30 days old, it asks Wikidata (the query
+  service at query.wikidata.org) for the id that goes with the movie's TMDB id. Only that TMDB id is sent, nothing
+  about people, ratings or viewing, and a Wikidata that is down or answers something odd changes nothing (one warning
+  in the log, and tomorrow's run tries again). A movie Wikidata doesn't know stays without an id, and so does
+  everything else about it. To set one by hand, send `PUT /api/movies/<id>` with `{"netflix_link": "<a Netflix
+  address or the number>"}`: `https://www.netflix.com/title/80183187`, a `/watch/` address, one with a locale like
+  `/us/` or a query string, or just `80183187`; anything else is a 400 ("That doesn't look like a Netflix link."). An id
+  set by hand is never changed by the lookup, and `{"netflix_link": ""}` clears it so the lookup fills it again. Each
+  movie carries `"netflix"`: `{"title_id": "80183187" | null, "manual": false}`, or `null` when TMDB doesn't list it on
+  Netflix.
 - **Owned, and where it sits.** The app asks [Matinee](https://github.com/SDNick484/matinee) (`MATINEE_URL` and
   `MATINEE_API_KEY`) whether each movie is in the collection. An owned movie leads its where-to-watch lines with the
   copies and the shelf: "Blu-ray · Family Room › Media Cabinet › Shelf 2" (a title Matinee lacks, or holds with no
@@ -229,8 +242,9 @@ sh setup-wonderful.sh --uninstall     # removes the app, service and nightly job
 every night as root and appends to `/var/log/ops.log`. It re-reads TMDB's watch providers for every movie whose
 cache is over 7 days old, and asks Matinee about every movie never checked or last checked over a day ago, or with a
 family rating Matinee hasn't received yet (asking again is what sends it, unless Matinee changed meanwhile). Then it
-sends Matinee the watches of movies finished while it was down. If TMDB has no token, or Matinee is down or refuses
-the key, that part stops at the first failure and the rest wait for tomorrow. Run it by hand with `/opt/wonderful/ops/wonderful-refresh` (`--dry-run` says what it would ask).
+sends Matinee the watches of movies finished while it was down. Last, it asks Wikidata for the Netflix title id of
+each movie on Netflix that has none checked in the last 30 days (and none set by hand). If TMDB has no token, or Matinee
+is down or refuses the key, or Wikidata doesn't answer, that part stops at the first failure and the rest wait for tomorrow. Run it by hand with `/opt/wonderful/ops/wonderful-refresh` (`--dry-run` says what it would ask).
 
 ### Backups
 

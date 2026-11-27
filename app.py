@@ -9,7 +9,8 @@ Routes (every one needs an editor, auth.editor_required, except where noted):
   /api/health       {"ok": true, "schema": "1"}
   /api/me           {"editor": "<who>"}
   /api/tmdb/search  TMDB search for the add sheet (?q=)
-  /api/movies       GET the list, POST {tmdb_id, tmdb_type} to add; /api/movies/<id> GET, PUT, DELETE
+  /api/movies       GET the list, POST {tmdb_id, tmdb_type} to add; /api/movies/<id> GET, PUT, DELETE (PUT takes parent_note,
+                    certification and/or netflix_link; every movie carries "netflix": {title_id, manual} or null)
   /api/search       our list: an exact title, else smart search (AI), else the local filter (?q=)
   /api/surprise     POST {filters, exclude}: three random picks from our list (the Surprise us button)
   /api/people       GET the family (copied from Matinee on first run), POST {name, kind, color} to add one here;
@@ -59,6 +60,7 @@ from auth import KEY_IDENTITY, presented_key, lan_host, access_identity, cross_s
 from auth import editor_required, hook_required, public  # noqa: F401
 from tmdb import TmdbError  # noqa: F401
 import ai, ha, images, matinee, movies, people, play, providers, randomizer, ratings, search, sync, themes, tmdb, viewings, watched_days, worth  # noqa: F401  (route-free modules; use images.X, movies.X, ...)
+import titles, wikidata  # noqa: F401
 
 
 # ===================================================================== split modules
@@ -67,7 +69,7 @@ import ai, ha, images, matinee, movies, people, play, providers, randomizer, rat
 # never the sibling module. A new module goes here and in installer/build.sh's cp line.
 _SPLIT_MODULES = ("settings", "common", "db", "auth", "tmdb", "ai", "images", "matinee", "movies", "people", "providers", "randomizer",
                   "ratings", "search", "sync", "ha", "play", "viewings", "themes", "worth",
-                  "watched_days")
+                  "watched_days", "wikidata", "titles")
 
 
 class _AppModule(types.ModuleType):
@@ -275,9 +277,11 @@ def api_calendar():
 def _movie_json(con, row):
     """movie_out plus the rating fields: family_rating and rating_source (what the poster shows, spec §8.2) and
     `family` {mean, by_person} for the detail view; and `watched_recently` (in the last 45 days), which greys the
-    poster on the grid; and `play`, what can play it on the TV (play.options: null when Play on TV is off)."""
+    poster on the grid; `play`, what can play it on the TV (play.options: null when Play on TV is off); and `netflix`,
+    its Netflix title id {"title_id": "80183187" | null, "manual": false} (null when the movie is not on Netflix)."""
     return {**movies.movie_out(row), **ratings.out(con, row["id"]),
-            "watched_recently": viewings.watched_recently(con, row["id"]), "play": play.options(con, row["id"])}
+            "watched_recently": viewings.watched_recently(con, row["id"]), "play": play.options(con, row["id"]),
+            "netflix": titles.out(con, row["id"])}
 
 
 @app.get("/api/movies")
@@ -300,6 +304,7 @@ def api_movie_add():
     except TmdbError as e:   # the movie is added; its providers arrive on the next refresh
         app.logger.warning("watch providers for movie %s: %s", movie_id, e.message)
     movies.refresh_ownership(con, movie_id)   # never fails: Matinee down means "not known yet", the nightly job retries
+    titles.lookup_quietly(con, movie_id)      # never fails either: Wikidata down means no Netflix id yet, the nightly job retries
     return jsonify({**_movie_json(con, movies.get_row(con, movie_id)), **providers.movie_providers(con, movie_id)}), 201
 
 
@@ -330,8 +335,17 @@ def api_providers_refresh(movie_id):
 @app.put("/api/movies/<int:movie_id>")
 @editor_required
 def api_movie_update(movie_id):
+    """parent_note, certification and/or netflix_link (a Netflix address or title number; "" clears it). The link is
+    checked before anything is saved, so a bad one changes nothing."""
     con = get_db()
-    movies.update_movie(con, movie_id, request.get_json(silent=True))
+    data = request.get_json(silent=True)
+    movies.get_row(con, movie_id)
+    link = None
+    if isinstance(data, dict) and "netflix_link" in data:
+        link = titles.parse_link(data["netflix_link"]) or ""
+    movies.update_movie(con, movie_id, data)
+    if isinstance(data, dict) and "netflix_link" in data:
+        titles.set_manual(con, movie_id, link)
     return jsonify(_movie_json(con, movies.get_row(con, movie_id)))
 
 
