@@ -101,7 +101,7 @@ def post_play(payload):
 
 # ------------------------------------------------------------------------------------------------ inbound: the TV (§10.2)
 RECEIVER = "AV Receiver"          # the TV input a disc comes in on (through the receiver): counts for owned discs only
-FANDANGO = "fandango_at_home"     # the service key (data/services.json) where our digital copies play
+FANDANGO = movies.FANDANGO        # the service key (data/services.json) where our digital copies play
 ON_STATES = ("on", "playing", "paused", "idle", "buffering")   # media_player states that mean the TV is on
 OFF_STATES = ("off", "standby")
 NO_SOURCE = ("", "none", "unknown", "unavailable")   # a template renders a missing attribute as "None"

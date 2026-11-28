@@ -7,12 +7,13 @@ Matinee being down must never take this app down, so the two failures are told a
                connection, HTTP 5xx, or a reply that is not Matinee's JSON. Nothing is known; try again later.
   Rejected     Matinee answered and said no (HTTP 4xx: a wrong key is 401, a bad rating 400). `status` and `message`
                carry what it said. Retrying the same request will not help."""
-import json, urllib.error, urllib.request
+import json, re, urllib.error, urllib.request
 
 from common import clean
 from settings import MATINEE_API_KEY, MATINEE_URL, UA
 
 TIMEOUT = 5
+FANDANGO_ID_RE = re.compile(r"[0-9]{1,12}")   # a Fandango at Home id: kept only when it is plain digits
 
 
 class Unavailable(Exception):
@@ -73,11 +74,14 @@ class Client:
 
     # ------------------------------------------------------------------------------------------ the routes (spec §8)
     def owned(self, tmdb_id):
-        """GET /admin/api/tmdb/<tmdb_id>/owned -> {title_id, summary, location_path, has_physical, has_digital}. `title_id` is Matinee's id for the
-        title or None when Matinee doesn't have it. `summary` is Matinee's text for the copies ("Blu-ray", "Blu-ray ·
-        Digital HD (Movies Anywhere)"), None when it has no copy. `location_path` is the first copy's shelf ("Family
-        Room › Media Cabinet › Shelf 2"), None when no copy has one. `has_physical` and `has_digital` say whether any copy's
-        `kind` is "physical" (a disc) or "digital"; a copy of any other kind counts as neither."""
+        """GET /admin/api/tmdb/<tmdb_id>/owned -> {title_id, summary, location_path, has_physical, has_digital,
+        fandango_id}. `title_id` is Matinee's id for the title or None when Matinee doesn't have it. `summary` is
+        Matinee's text for the copies ("Blu-ray", "Blu-ray · Digital HD (Movies Anywhere)"), None when it has no copy.
+        `location_path` is the first copy's shelf ("Family Room › Media Cabinet › Shelf 2"), None when no copy has
+        one. `has_physical` and `has_digital` say whether any copy's `kind` is "physical" (a disc) or "digital"; a
+        copy of any other kind counts as neither. `fandango_id` is the Fandango at Home id of the first digital copy
+        that has one (a string of 1 to 12 digits), else None: a copy without the key (an older Matinee), a disc, or
+        an id that is anything but digits never counts."""
         d = self._call("GET", f"/admin/api/tmdb/{int(tmdb_id)}/owned")
         title_id = d.get("title_id")
         if title_id is not None and (isinstance(title_id, bool) or not isinstance(title_id, int)):
@@ -86,7 +90,9 @@ class Client:
         path = next((clean(c.get("location_path")) for c in copies if clean(c.get("location_path"))), None)
         kinds = {c.get("kind") for c in copies}
         return {"title_id": title_id, "summary": clean(d.get("summary")), "location_path": path,
-                "has_physical": "physical" in kinds, "has_digital": "digital" in kinds}
+                "has_physical": "physical" in kinds, "has_digital": "digital" in kinds,
+                "fandango_id": next((c["fandango_id"] for c in copies
+                                     if c.get("kind") == "digital" and _has_fandango_id(c)), None)}
 
     def title(self, title_id):
         """GET /admin/api/titles/<id> -> Matinee's whole title record (`user_rating`, `watches[{watched_date, …}]`)."""
@@ -119,6 +125,12 @@ class Client:
         if not isinstance(people, list):
             raise Unavailable("Matinee sent something we couldn't read.")
         return [p for p in people if isinstance(p, dict)]
+
+
+def _has_fandango_id(copy):
+    """True when the copy's `fandango_id` is a string of 1 to 12 ASCII digits."""
+    value = copy.get("fandango_id")
+    return isinstance(value, str) and FANDANGO_ID_RE.fullmatch(value) is not None
 
 
 def _said(err):

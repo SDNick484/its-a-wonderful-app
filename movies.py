@@ -13,6 +13,7 @@ from common import clean, make_err, now_iso
 
 CERTIFICATIONS = ("G", "PG", "PG-13", "R", "NC-17", "NR", "TV-Y", "TV-Y7", "TV-G", "TV-PG", "TV-14", "TV-MA")
 NOTE_MAX = 1000
+FANDANGO = "fandango_at_home"  # the service key (data/services.json) our digital copies play on; ha.FANDANGO is this
 OWNERSHIP_STALE_DAYS = 1      # spec §8.1: ownership is asked again when the last good answer is older than a day
 MATINEE_BACKOFF = 60          # seconds a page view leaves Matinee alone after it failed to answer
 _matinee_failed_at = None     # time.monotonic() of the last failed page-view lookup (this worker only)
@@ -165,7 +166,8 @@ def check_ownership(con, movie_id):
     A title Matinee doesn't have, or has with no copy, is not owned: matinee_title_id NULL and no summary or shelf.
     A TV-only entry (tmdb_type 'tv') is never asked: Matinee keys titles by movie id, so a TV id could match an
     unrelated movie (spec §8.2). Only the Matinee-read columns (the five, and has_physical / has_digital: 0 or 1 when
-    owned, 0 when not) and checked_at are written here; then
+    owned, 0 when not) and checked_at are written here, plus the movie's Fandango at Home id in service_titles (cleared
+    when Matinee reports none); then
     sync.reconcile compares Matinee's rating with the family's (the bought-later rule, a conflict, a push still owed).
     Raises matinee.Unavailable or matinee.Rejected when Matinee gives no answer: nothing is changed then, so the last
     known answer and its checked_at stay."""
@@ -178,9 +180,11 @@ def check_ownership(con, movie_id):
     title_id = found["title_id"] if found["summary"] else None
     summary = location = rating = last_watch = None
     physical = digital = 0
+    fandango_id = None
     if title_id is not None:
         summary, location = found["summary"], found["location_path"]
         physical, digital = int(found["has_physical"]), int(found["has_digital"])
+        fandango_id = found["fandango_id"]
         detail = api.title(title_id)
         rating = _user_rating(detail)
         last_watch = _newest_watch(detail.get("watches"))
@@ -192,8 +196,19 @@ def check_ownership(con, movie_id):
         " matinee_rating=excluded.matinee_rating, matinee_last_watch=excluded.matinee_last_watch,"
         " has_physical=excluded.has_physical, has_digital=excluded.has_digital, checked_at=excluded.checked_at",
         (movie_id, title_id, summary, location, rating, last_watch, physical, digital, now_iso()))
+    _store_fandango_id(con, movie_id, fandango_id)
     con.commit()
     sync.reconcile(con, movie_id, before)
+
+
+def _store_fandango_id(con, movie_id, fandango_id):
+    """Keep the Fandango at Home id Matinee reported for the movie (None when it reported none, which clears the last
+    one) in service_titles under FANDANGO, as found (manual 0) and checked now. The caller commits. The SQL is here
+    because titles.py, which owns that table's other writes, can't be imported at module level (titles imports
+    providers, which imports this module)."""
+    con.execute("INSERT INTO service_titles (movie_id, service, title_id, manual, checked_at) VALUES (?,?,?,0,?)"
+                " ON CONFLICT(movie_id, service) DO UPDATE SET title_id=excluded.title_id,"
+                " checked_at=excluded.checked_at", (movie_id, FANDANGO, fandango_id, now_iso()))
 
 
 def copy_kinds(con, movie_id):
